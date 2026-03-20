@@ -139,7 +139,8 @@ button, a, input, select, textarea, [role="button"] {
 }
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.45),
+              0 0 0 1px rgba(168, 85, 247, 0.15);
 }
 .btn-primary:active {
   transform: scale(0.97);
@@ -411,4 +412,114 @@ button, a, input, select, textarea, [role="button"] {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* ── New Keyframes (Rally Motion System) ───────────────────────── */
+
+/* Breathing glow — hero CTA, active elements */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(168,85,247,0.35),
+                0 4px 24px rgba(168,85,247,0.2);
+  }
+  50% {
+    box-shadow: 0 0 42px rgba(168,85,247,0.6),
+                0 8px 40px rgba(236,72,153,0.3);
+  }
+}
+
+/* Skeleton scan — shimmer moves left to right */
+@keyframes scan {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%); }
+}
+
+/* Bounce-in — celebratory entry for success states */
+@keyframes bounce-in {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.1); opacity: 1; }
+  80%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+/* Gradient drift — animated mesh for hero backgrounds */
+@keyframes gradient-drift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── New Utility Classes ────────────────────────────────────────── */
+
+/* Breathing glow on hero CTA */
+.animate-glow-pulse {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+
+/* Celebratory bounce-in for trophies, success emojis */
+.animate-bounce-in {
+  animation: bounce-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Premium skeleton loader base */
+.skeleton {
+  background: rgba(255,255,255,0.04);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  position: relative;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.07) 50%,
+    transparent 100%
+  );
+  animation: scan 1.8s ease-in-out infinite;
+}
+
+/* Subtle radial gradient depth — add to hero section containers */
+.gradient-mesh {
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(168,85,247,0.1) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(236,72,153,0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(249,115,22,0.05) 0%, transparent 50%);
+}
+
+/* Glow border on hover — for feature cards, CTA sections */
+.glow-border {
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glow-border:hover {
+  border-color: rgba(168,85,247,0.3);
+  box-shadow:
+    0 0 24px rgba(168,85,247,0.1),
+    inset 0 0 24px rgba(168,85,247,0.03);
+}
+
+/* ── Reduced Motion ─────────────────────────────────────────────── */
+/* Single block — overrides all CSS animations for accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-shimmer,
+  .animate-pulse-glow,
+  .animate-glow-pulse,
+  .animate-bounce-in {
+    animation: none;
+  }
+  .skeleton::after {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

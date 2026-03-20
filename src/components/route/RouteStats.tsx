@@ -1,7 +1,9 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { GeneratedRoute } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
+import { fadeUp, staggerContainer } from '@/lib/motion';
 
 interface RouteStatsProps {
   route: GeneratedRoute;
@@ -27,37 +29,36 @@ export default function RouteStats({ route }: RouteStatsProps) {
   };
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-      {/* Cost */}
+    <motion.div
+      variants={staggerContainer}
+      initial="hidden"
+      animate="visible"
+      className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1"
+    >
       <Chip emoji="💰" label={`~${formatCurrency(totalCost)}`} />
-
-      {/* Time */}
       <Chip emoji="⏱️" label={totalTime} />
-
-      {/* Stop count */}
       <Chip emoji="📍" label={`${stops.length} stop${stops.length !== 1 ? 's' : ''}`} />
-
-      {/* Travel mode */}
       <Chip emoji={travelMode === 'Walking' ? '🚶' : '🚇'} label={travelMode} />
-
-      {/* Indoor/outdoor */}
       {stops.length > 0 && (
         <Chip emoji="🏠" label={`${indoorPct}% indoor`} />
       )}
-
-      {/* Top categories */}
       {topCats.map(([cat, count]) => (
         <Chip key={cat} emoji={catEmojis[cat] ?? '📌'} label={`${count} ${cat}`} />
       ))}
-    </div>
+    </motion.div>
   );
 }
 
 function Chip({ emoji, label }: { emoji: string; label: string }) {
   return (
-    <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 border border-white/8 whitespace-nowrap shrink-0">
+    <motion.div
+      variants={fadeUp}
+      whileHover={{ scale: 1.05, y: -1 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 border border-white/8 whitespace-nowrap shrink-0 cursor-default"
+    >
       <span className="text-sm leading-none">{emoji}</span>
       <span className="text-xs text-text-secondary">{label}</span>
-    </div>
+    </motion.div>
   );
 }

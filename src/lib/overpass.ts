@@ -79,6 +79,11 @@ export function estimateMinutes(category: PlaceCategory): number {
   return base[category] || 30;
 }
 
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
+
 export async function fetchOverpassPlaces(
   lat: number,
   lng: number,
@@ -100,59 +105,78 @@ export async function fetchOverpassPlaces(
     out skel qt;
   `;
 
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
+  const body = `data=${encodeURIComponent(overpassQuery)}`;
+  const fetchOptions: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(overpassQuery)}`,
-  });
+    body,
+  };
 
-  if (!res.ok) {
-    throw new Error(`Overpass API returned ${res.status}`);
+  let lastError: Error | null = null;
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, fetchOptions);
+      if (res.status === 429) {
+        // Rate-limited — wait briefly then try next endpoint
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        lastError = new Error(`Overpass API returned 429 at ${endpoint}`);
+        continue;
+      }
+      if (!res.ok) {
+        lastError = new Error(`Overpass API returned ${res.status} at ${endpoint}`);
+        continue;
+      }
+
+      const data = await res.json();
+      const places: Place[] = [];
+      const seenIds = new Set<string>();
+
+      for (const element of data.elements || []) {
+        const tags = element.tags || {};
+        const name = tags.name;
+        if (!name) continue;
+
+        const amenityKey = tags.amenity || tags.shop || tags.leisure || tags.tourism || '';
+        const category = OSM_CATEGORY_MAP[amenityKey];
+        if (!category) continue;
+
+        const elLat = element.lat ?? element.center?.lat;
+        const elLng = element.lon ?? element.center?.lon;
+        if (!elLat || !elLng) continue;
+
+        const osmId = `osm-${element.id}`;
+        if (seenIds.has(osmId)) continue;
+        seenIds.add(osmId);
+
+        const priceLevel = estimatePriceLevel(tags);
+
+        places.push({
+          id: osmId,
+          name,
+          category,
+          lat: elLat,
+          lng: elLng,
+          address: [
+            tags['addr:housenumber'],
+            tags['addr:street'],
+            tags['addr:city'],
+          ].filter(Boolean).join(' ') || 'Nearby',
+          priceLevel: priceLevel as 1 | 2 | 3 | 4,
+          estimatedCost: estimateCost(category, priceLevel),
+          estimatedMinutes: estimateMinutes(category),
+          rating: undefined,
+          // Deduplicate tags — amenityKey and tags.cuisine can both be "ice_cream" for the same place
+          tags: [...new Set([amenityKey, tags.cuisine, tags.sport].filter(Boolean) as string[])],
+          indoor: category !== 'park' && category !== 'scenic',
+          source: 'osm',
+        });
+      }
+
+      return places;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
   }
 
-  const data = await res.json();
-  const places: Place[] = [];
-  const seenIds = new Set<string>();
-
-  for (const element of data.elements || []) {
-    const tags = element.tags || {};
-    const name = tags.name;
-    if (!name) continue;
-
-    const amenityKey = tags.amenity || tags.shop || tags.leisure || tags.tourism || '';
-    const category = OSM_CATEGORY_MAP[amenityKey];
-    if (!category) continue;
-
-    const elLat = element.lat ?? element.center?.lat;
-    const elLng = element.lon ?? element.center?.lon;
-    if (!elLat || !elLng) continue;
-
-    const osmId = `osm-${element.id}`;
-    if (seenIds.has(osmId)) continue;
-    seenIds.add(osmId);
-
-    const priceLevel = estimatePriceLevel(tags);
-
-    places.push({
-      id: osmId,
-      name,
-      category,
-      lat: elLat,
-      lng: elLng,
-      address: [
-        tags['addr:housenumber'],
-        tags['addr:street'],
-        tags['addr:city'],
-      ].filter(Boolean).join(' ') || 'Nearby',
-      priceLevel: priceLevel as 1 | 2 | 3 | 4,
-      estimatedCost: estimateCost(category, priceLevel),
-      estimatedMinutes: estimateMinutes(category),
-      rating: undefined,
-      tags: [amenityKey, tags.cuisine, tags.sport].filter(Boolean) as string[],
-      indoor: category !== 'park' && category !== 'scenic',
-      source: 'osm',
-    });
-  }
-
-  return places;
+  throw lastError ?? new Error('All Overpass endpoints failed');
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { GeneratedRoute } from '@/lib/types';
 import { categoryLabel } from '@/lib/utils';
 
@@ -208,20 +209,39 @@ export default function RouteMap({
   }, [route, activeStopIndex, lockedStopIds, mapLoaded, onStopClickStable]);
 
   return (
-    <div className={`relative ${className}`}>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      className={`relative ${className}`}
+    >
       <div
         ref={containerRef}
         className="w-full h-full rounded-2xl overflow-hidden bg-surface-card border border-border-default"
         style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
       />
       {!mapLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-surface-card border border-border-default">
-          <div className="flex flex-col items-center gap-2 text-text-muted">
+        <div className="absolute inset-0 rounded-2xl overflow-hidden bg-surface-card border border-border-default">
+          {/* Skeleton grid lines */}
+          <div className="absolute inset-0 opacity-[0.07]">
+            {/* Horizontal lines */}
+            {[20, 35, 50, 65, 80].map(pct => (
+              <div key={pct} className="absolute left-0 right-0 h-px bg-white" style={{ top: `${pct}%` }} />
+            ))}
+            {/* Vertical lines */}
+            {[15, 30, 45, 60, 75, 90].map(pct => (
+              <div key={pct} className="absolute top-0 bottom-0 w-px bg-white" style={{ left: `${pct}%` }} />
+            ))}
+          </div>
+          {/* Shimmer sweep */}
+          <div className="skeleton absolute inset-0" />
+          {/* Loading indicator */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-text-muted">
             <div className="w-6 h-6 border-2 border-rally-500/40 border-t-rally-500 rounded-full animate-spin" />
             <span className="text-xs">Loading map…</span>
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

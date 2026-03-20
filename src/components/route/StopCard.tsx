@@ -1,10 +1,11 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { RouteStop } from '@/lib/types';
 import { categoryEmoji, categoryLabel, formatCurrency } from '@/lib/utils';
+import { EASE_SPRING_SNAPPY, EASE_SPRING_SOFT } from '@/lib/motion';
 
 interface StopCardProps {
   stop: RouteStop;
@@ -63,19 +64,36 @@ export default function StopCard({
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       onClick={onActivate}
       className={[
-        'glass-card relative overflow-hidden transition-all',
+        'glass-card relative overflow-hidden transition-shadow',
         stop.completed ? 'opacity-60' : '',
-        isActive ? 'ring-2 ring-rally-500/60 ring-offset-1 ring-offset-transparent' : '',
         isDragging ? 'shadow-2xl shadow-rally-500/30 scale-[1.02]' : '',
         isEditing ? 'pointer-events-none' : '',
       ].join(' ')}
     >
-      {/* Left accent bar — amber for locked, gradient for normal */}
-      <div className={`absolute top-0 left-0 w-1 h-full ${
-        isLocked
-          ? 'bg-amber-400'
-          : 'bg-gradient-to-b from-rally-500 to-rally-pink'
-      }`} />
+      {/* Active ring — uses motion to glide between cards */}
+      <AnimatePresence>
+        {isActive && (
+          <motion.div
+            layoutId="active-stop-ring"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={EASE_SPRING_SOFT}
+            className="absolute inset-0 rounded-xl ring-2 ring-rally-500/60 pointer-events-none"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Left accent bar — animated color morph */}
+      <motion.div
+        className="absolute top-0 left-0 w-1 h-full rounded-l-xl"
+        animate={{
+          background: isLocked
+            ? 'linear-gradient(to bottom, #f59e0b, #d97706)'
+            : 'linear-gradient(to bottom, #a855f7, #ec4899)',
+        }}
+        transition={{ duration: 0.4 }}
+      />
 
       <div className="flex items-stretch gap-0 pl-3 pr-3.5 py-4">
         {/* Drag handle */}
@@ -100,7 +118,7 @@ export default function StopCard({
         </div>
 
         {/* Category emoji */}
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rally-500/20 to-rally-pink/20 flex items-center justify-center text-lg shrink-0 mt-0.5">
+        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-rally-500/20 to-rally-pink/20 flex items-center justify-center text-lg shrink-0 mt-0.5">
           {categoryEmoji(stop.place.category)}
         </div>
 
@@ -110,8 +128,17 @@ export default function StopCard({
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <span className="text-[10px] sm:text-xs text-rally-400 font-semibold">STOP {index + 1}</span>
-              <h3 className={`text-base sm:text-[17px] font-bold leading-tight ${stop.completed ? 'line-through opacity-60' : ''}`}>
-                {stop.place.name}
+              <h3 className="text-base sm:text-[17px] font-bold leading-tight">
+                <motion.span
+                  animate={{
+                    opacity: stop.completed ? 0.5 : 1,
+                    textDecorationLine: stop.completed ? 'line-through' : 'none',
+                  }}
+                  transition={{ duration: 0.3 }}
+                  style={{ textDecoration: stop.completed ? 'line-through' : 'none' }}
+                >
+                  {stop.place.name}
+                </motion.span>
               </h3>
               <p className="text-[10px] sm:text-xs text-text-muted mt-0.5">
                 {categoryLabel(stop.place.category)}
@@ -124,17 +151,28 @@ export default function StopCard({
                 {formatCurrency(stop.place.estimatedCost)}
               </span>
 
-              {/* Lock / Unlock button */}
-              <button
+              {/* Lock / Unlock button — animated icon swap */}
+              <motion.button
                 onClick={e => { e.stopPropagation(); onToggleLock(); }}
+                whileTap={{ scale: 0.85 }}
+                transition={EASE_SPRING_SNAPPY}
                 className="p-1 rounded-lg hover:bg-white/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                 aria-label={isLocked ? 'Unlock stop' : 'Lock stop'}
                 title={isLocked ? 'Unlock this stop' : 'Lock this stop so edits skip it'}
               >
-                <span className={`text-sm ${isLocked ? 'text-amber-400' : 'text-white/25 hover:text-white/50'}`}>
-                  {isLocked ? '🔒' : '🔓'}
-                </span>
-              </button>
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={isLocked ? 'locked' : 'unlocked'}
+                    initial={{ scale: 0.5, rotate: -20, opacity: 0 }}
+                    animate={{ scale: 1, rotate: 0, opacity: 1 }}
+                    exit={{ scale: 0.5, rotate: 20, opacity: 0 }}
+                    transition={EASE_SPRING_SNAPPY}
+                    className={`text-sm ${isLocked ? 'text-amber-400' : 'text-white/25'}`}
+                  >
+                    {isLocked ? '🔒' : '🔓'}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
             </div>
           </div>
 
@@ -174,8 +212,10 @@ export default function StopCard({
           {/* Action chips — horizontally scrollable on mobile */}
           <div className="flex items-center gap-1.5 mt-3 overflow-x-auto no-scrollbar pb-0.5">
             {/* Mark done */}
-            <button
+            <motion.button
               onClick={e => { e.stopPropagation(); onComplete(); }}
+              whileTap={{ scale: 0.88 }}
+              transition={EASE_SPRING_SNAPPY}
               className={`text-xs px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap min-h-[34px] shrink-0 ${
                 stop.completed
                   ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -183,28 +223,32 @@ export default function StopCard({
               }`}
             >
               {stop.completed ? '✓ Done' : 'Mark done'}
-            </button>
+            </motion.button>
 
             {/* Reroll (AI swap) */}
             {!isLocked && (
-              <button
+              <motion.button
                 onClick={e => { e.stopPropagation(); onRerollAI(); }}
                 disabled={isEditing}
+                whileTap={!isEditing ? { scale: 0.88 } : {}}
+                transition={EASE_SPRING_SNAPPY}
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-text-secondary active:bg-white/10 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
               >
                 🎲 Swap
-              </button>
+              </motion.button>
             )}
 
             {/* See alternatives */}
             {!isLocked && (
-              <button
+              <motion.button
                 onClick={e => { e.stopPropagation(); onShowAlternatives(); }}
                 disabled={isEditing}
+                whileTap={!isEditing ? { scale: 0.88 } : {}}
+                transition={EASE_SPRING_SNAPPY}
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-text-secondary active:bg-white/10 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
               >
                 ✦ Alternatives
-              </button>
+              </motion.button>
             )}
 
             {/* Directions */}
@@ -220,29 +264,43 @@ export default function StopCard({
 
             {/* Delete */}
             {!isLocked && (
-              <button
+              <motion.button
                 onClick={e => { e.stopPropagation(); onDelete(); }}
                 disabled={isEditing}
+                whileTap={!isEditing ? { scale: 0.85 } : {}}
+                transition={EASE_SPRING_SNAPPY}
                 className="text-xs px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400/70 hover:bg-red-500/20 hover:text-red-400 active:bg-red-500/25 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
                 aria-label="Delete stop"
                 title="Remove this stop"
               >
                 ✕
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Editing overlay */}
-      {isEditing && (
-        <div className="absolute inset-0 bg-surface-primary/30 backdrop-blur-[2px] rounded-xl flex items-center justify-center">
-          <div className="flex items-center gap-2 text-xs text-text-secondary">
-            <div className="w-3.5 h-3.5 border border-rally-500/50 border-t-rally-500 rounded-full animate-spin" />
-            <span>Updating…</span>
-          </div>
-        </div>
-      )}
+      {/* Editing overlay — breathing animation */}
+      <AnimatePresence>
+        {isEditing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 bg-surface-primary/40 backdrop-blur-[3px] rounded-xl flex items-center justify-center"
+          >
+            <motion.div
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="flex items-center gap-2 text-xs text-text-secondary bg-surface-card/80 px-3 py-2 rounded-lg"
+            >
+              <div className="w-3.5 h-3.5 border border-rally-500/50 border-t-rally-500 rounded-full animate-spin" />
+              <span>Updating…</span>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

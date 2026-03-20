@@ -22,9 +22,13 @@ export default function Navbar() {
       {/* Desktop Nav */}
       <nav className="hidden md:flex fixed top-0 left-0 right-0 z-50 items-center justify-between px-6 py-3 bg-surface-primary/80 backdrop-blur-xl border-b border-border-default">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rally-500 to-rally-pink flex items-center justify-center text-white font-bold text-sm">
+          <motion.div
+            whileHover={{ scale: 1.12, rotate: 6 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 20 }}
+            className="w-8 h-8 rounded-lg bg-linear-to-br from-rally-500 to-rally-pink flex items-center justify-center text-white font-bold text-sm"
+          >
             R
-          </div>
+          </motion.div>
           <span className="text-lg font-bold gradient-text">Rally</span>
         </Link>
 
@@ -100,7 +104,13 @@ export default function Navbar() {
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                   />
                 )}
-                <span className="text-xl leading-none">{item.icon}</span>
+                <motion.span
+                  animate={isActive ? { y: [-3, 0] } : { y: 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 18 }}
+                  className="text-xl leading-none"
+                >
+                  {item.icon}
+                </motion.span>
                 <span className="text-[10px] font-medium leading-none">{item.label}</span>
               </Link>
             );

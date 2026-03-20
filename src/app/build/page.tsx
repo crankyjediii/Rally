@@ -14,6 +14,7 @@ import { generateRoute } from '@/lib/route-engine';
 import { prepareCandidates } from '@/lib/candidate-scorer';
 import { getMockPlaces } from '@/lib/mock-data';
 import { setCurrentRoute, savePreferences, setCandidatePool } from '@/lib/storage';
+import { EASE_SPRING_SNAPPY, EASE_OUT_EXPO } from '@/lib/motion';
 
 const STEPS = ['Vibe', 'Details', 'Location', 'Generate'];
 
@@ -34,6 +35,13 @@ const STAGE_LABELS: Record<NonNullable<GeneratingStage>, string> = {
   building: 'Building your route...',
 };
 
+const STAGE_DESCRIPTIONS: Record<NonNullable<GeneratingStage>, string> = {
+  location: 'Reading your precise coordinates...',
+  places: 'Scanning local venues and hidden gems nearby...',
+  scoring: 'Filtering for vibe fit and quality...',
+  building: 'Crafting your perfect night out...',
+};
+
 const STAGE_ORDER: NonNullable<GeneratingStage>[] = ['location', 'places', 'scoring', 'building'];
 
 function OptionGrid<T extends string>({
@@ -50,13 +58,18 @@ function OptionGrid<T extends string>({
   return (
     <div className={`grid ${columns} gap-2.5 sm:gap-3`}>
       {options.map(opt => (
-        <button key={opt.value} onClick={() => onChange(opt.value)}
+        <motion.button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
           className={`option-card ${opt.value === value ? 'active' : ''}`}
+          whileTap={{ scale: 0.93 }}
+          animate={opt.value === value ? { scale: 1.02 } : { scale: 1 }}
+          transition={EASE_SPRING_SNAPPY}
         >
           <span className="text-xl sm:text-2xl">{opt.icon}</span>
           <span className="text-xs sm:text-sm font-medium">{opt.label}</span>
           {opt.description && <span className="text-[10px] sm:text-xs text-text-muted hidden sm:block">{opt.description}</span>}
-        </button>
+        </motion.button>
       ))}
     </div>
   );
@@ -82,7 +95,6 @@ export default function BuildPage() {
   // Fetch real nearby places — does NOT silently fall back to NYC mock data
   const fetchPlaces = useCallback(async (loc: LocationData): Promise<Place[]> => {
     if (loc.isDemo) {
-      // Demo mode: explicitly use mock data
       const mock = getMockPlaces();
       setPlaces(mock);
       setFetchedPlaces(true);
@@ -101,10 +113,8 @@ export default function BuildPage() {
         setPlacesFetchStatus('success');
         return data.places;
       } else {
-        // Sparse area — be honest about it
         setFetchedPlaces(true);
         setPlacesFetchStatus('sparse');
-        // Use mock data but the route will be marked isDemo
         const mock = getMockPlaces();
         setPlaces(mock);
         return mock;
@@ -130,13 +140,11 @@ export default function BuildPage() {
   }, [useDemo]);
 
   const handleGenerate = useCallback(async () => {
-    // Guard: require location — never silently use hardcoded NYC
     if (!location) return;
 
     setGenerating(true);
     savePreferences(prefs);
 
-    // Fire-and-forget sync to Convex
     if (isSignedIn) {
       updatePrefsMutation({
         vibe: prefs.vibe,
@@ -157,14 +165,12 @@ export default function BuildPage() {
     setGeneratingStage('location');
     await new Promise(r => setTimeout(r, 350));
 
-    // Get places if not already fetched
     let usePlaces = places;
     if (usePlaces.length === 0) {
       setGeneratingStage('places');
       usePlaces = await fetchPlaces(loc);
     }
 
-    // If still empty after fetch and not demo, can't generate
     if (usePlaces.length === 0 && !isDemo) {
       setGenerating(false);
       setGeneratingStage(null);
@@ -177,13 +183,11 @@ export default function BuildPage() {
     setGeneratingStage('scoring');
     await new Promise(r => setTimeout(r, 300));
 
-    // Score and filter candidates
     const scored = prepareCandidates(usePlaces, prefs.vibe);
     const candidatePlaces = scored.length >= 2
       ? scored
       : usePlaces.map(p => ({ ...p, outingSuitabilityScore: 8, vibeFitScore: 5, likelyChain: false }));
 
-    // Store candidate pool for reroll/wildcard/cheaper/fun actions
     setCandidatePool({
       places: candidatePlaces,
       fetchedAt: Date.now(),
@@ -197,7 +201,6 @@ export default function BuildPage() {
 
     let route: GeneratedRoute;
 
-    // Use AI planning if enabled and not demo
     if (process.env.NEXT_PUBLIC_USE_AI_PLANNING === 'true' && !isDemo) {
       try {
         const res = await fetch('/api/plan', {
@@ -216,15 +219,12 @@ export default function BuildPage() {
         if (res.ok) {
           route = await res.json();
         } else {
-          // AI endpoint failed — fall back to deterministic
           route = generateRoute(candidatePlaces, prefs, loc.city, loc.neighborhood, isDemo);
         }
       } catch {
-        // Network error — fall back to deterministic
         route = generateRoute(candidatePlaces, prefs, loc.city, loc.neighborhood, isDemo);
       }
     } else {
-      // Deterministic planning (always works, AI key optional)
       route = generateRoute(candidatePlaces, prefs, loc.city, loc.neighborhood, isDemo);
     }
 
@@ -242,7 +242,6 @@ export default function BuildPage() {
 
   const canProceed = step < 3;
 
-  // Location status display helpers
   const locationModeLabel = location
     ? location.isDemo
       ? { icon: '🎭', text: 'Demo mode — showing sample NYC data', color: 'text-amber-400' }
@@ -257,28 +256,46 @@ export default function BuildPage() {
       <div className="bg-orb w-[400px] h-[400px] bg-rally-600 -top-20 -right-20 fixed" />
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-5 pt-4 sm:pt-8 pb-4">
-        {/* Progress bar */}
+
+        {/* ── Progress bar ──── */}
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
             {STEPS.map((s, i) => (
-              <div key={s} className="flex-1">
-                <div className={`h-1 rounded-full transition-colors duration-300 ${i <= step ? 'bg-rally-500' : 'bg-white/10'}`} />
+              <div key={s} className="flex-1 relative h-1 rounded-full bg-white/10 overflow-hidden">
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-full bg-rally-500 origin-left"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: i <= step ? 1 : 0 }}
+                  transition={{ duration: 0.45, ease: EASE_OUT_EXPO }}
+                />
               </div>
             ))}
           </div>
           <div className="flex justify-between px-0.5">
             {STEPS.map((s, i) => (
-              <span key={s} className={`text-[10px] sm:text-xs font-medium transition-colors ${i <= step ? 'text-rally-400' : 'text-text-muted'}`}>
+              <motion.span
+                key={s}
+                animate={{ color: i <= step ? '#c084fc' : '#71717a' }}
+                transition={{ duration: 0.3 }}
+                className="text-[10px] sm:text-xs font-medium"
+              >
                 {s}
-              </span>
+              </motion.span>
             ))}
           </div>
         </div>
 
         <AnimatePresence mode="wait">
+
           {/* ── Step 0: Vibe ──── */}
           {step === 0 && (
-            <motion.div key="vibe" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+            <motion.div
+              key="vibe"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
+            >
               <h1 className="text-2xl sm:text-3xl font-bold mb-1.5">What&apos;s the vibe?</h1>
               <p className="text-sm sm:text-base text-text-secondary mb-6">Pick the energy for your outing.</p>
               <OptionGrid options={VIBES} value={prefs.vibe} onChange={v => update('vibe', v)} columns="grid-cols-3 sm:grid-cols-3 lg:grid-cols-5" />
@@ -287,7 +304,12 @@ export default function BuildPage() {
 
           {/* ── Step 1: Details ──── */}
           {step === 1 && (
-            <motion.div key="details" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}
+            <motion.div
+              key="details"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
               className="space-y-6"
             >
               <div>
@@ -314,42 +336,80 @@ export default function BuildPage() {
                 <h2 className="text-lg sm:text-xl font-bold mb-3">Indoor / Outdoor</h2>
                 <OptionGrid options={INDOOR_OUTDOOR_OPTIONS} value={prefs.indoorOutdoor} onChange={v => update('indoorOutdoor', v)} columns="grid-cols-3" />
               </div>
+
+              {/* Toggle switches */}
               <div className="flex flex-col gap-3">
-                <button
+                <motion.button
                   onClick={() => update('foodRequired', !prefs.foodRequired)}
                   className="flex items-center justify-between glass-card p-4 cursor-pointer w-full text-left"
+                  whileTap={{ scale: 0.98 }}
+                  transition={EASE_SPRING_SNAPPY}
                 >
                   <span className="font-medium text-sm sm:text-base">🍕 Must include food</span>
-                  <div className={`w-12 h-7 rounded-full flex items-center p-1 transition-colors shrink-0 ${prefs.foodRequired ? 'bg-rally-500' : 'bg-white/10'}`}>
-                    <motion.div layout className={`w-5 h-5 rounded-full bg-white ${prefs.foodRequired ? 'ml-auto' : ''}`} />
-                  </div>
-                </button>
-                <button
+                  <motion.div
+                    className="w-12 h-7 rounded-full flex items-center p-1 shrink-0"
+                    animate={{ backgroundColor: prefs.foodRequired ? '#a855f7' : 'rgba(255,255,255,0.1)' }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <motion.div layout className={`w-5 h-5 rounded-full bg-white shadow-sm ${prefs.foodRequired ? 'ml-auto' : ''}`} />
+                  </motion.div>
+                </motion.button>
+                <motion.button
                   onClick={() => update('attractionRequired', !prefs.attractionRequired)}
                   className="flex items-center justify-between glass-card p-4 cursor-pointer w-full text-left"
+                  whileTap={{ scale: 0.98 }}
+                  transition={EASE_SPRING_SNAPPY}
                 >
                   <span className="font-medium text-sm sm:text-base">🎡 Must include attraction</span>
-                  <div className={`w-12 h-7 rounded-full flex items-center p-1 transition-colors shrink-0 ${prefs.attractionRequired ? 'bg-rally-500' : 'bg-white/10'}`}>
-                    <motion.div layout className={`w-5 h-5 rounded-full bg-white ${prefs.attractionRequired ? 'ml-auto' : ''}`} />
-                  </div>
-                </button>
+                  <motion.div
+                    className="w-12 h-7 rounded-full flex items-center p-1 shrink-0"
+                    animate={{ backgroundColor: prefs.attractionRequired ? '#a855f7' : 'rgba(255,255,255,0.1)' }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <motion.div layout className={`w-5 h-5 rounded-full bg-white shadow-sm ${prefs.attractionRequired ? 'ml-auto' : ''}`} />
+                  </motion.div>
+                </motion.button>
               </div>
             </motion.div>
           )}
 
           {/* ── Step 2: Location ──── */}
           {step === 2 && (
-            <motion.div key="location" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}
+            <motion.div
+              key="location"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
               className="text-center"
             >
-              <div className="text-4xl sm:text-5xl mb-4 sm:mb-6">📍</div>
+              {/* Animated location ping */}
+              <div className="relative w-20 h-20 mx-auto mb-4 sm:mb-6 flex items-center justify-center">
+                <motion.div
+                  animate={{ scale: [1, 1.8, 1], opacity: [0.35, 0, 0.35] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut' }}
+                  className="absolute inset-0 rounded-full bg-rally-500/20"
+                />
+                <motion.div
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.25, 0, 0.25] }}
+                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeOut', delay: 0.6 }}
+                  className="absolute inset-0 rounded-full bg-rally-500/15"
+                />
+                <div className="relative text-4xl sm:text-5xl">📍</div>
+              </div>
+
               <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-3">Where are you?</h1>
               <p className="text-sm sm:text-base text-text-secondary mb-6 sm:mb-8 max-w-md mx-auto">
                 Rally uses your location to find real nearby spots. Your data stays on your device.
               </p>
 
               {location ? (
-                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-5 sm:p-6 max-w-sm mx-auto mb-6">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+                  className="glass-card p-5 sm:p-6 max-w-sm mx-auto mb-6"
+                >
                   <div className="text-2xl mb-2">{locationModeLabel?.icon}</div>
                   <p className="font-bold text-lg">{location.city}</p>
                   {location.neighborhood && <p className="text-sm text-text-secondary">{location.neighborhood}</p>}
@@ -374,7 +434,6 @@ export default function BuildPage() {
                     </p>
                   )}
 
-                  {/* Option to re-request fresher location */}
                   {isStale && (
                     <button onClick={handleLocationRequest} disabled={geoLoading}
                       className="mt-4 text-xs text-rally-400 underline underline-offset-2"
@@ -385,7 +444,14 @@ export default function BuildPage() {
                 </motion.div>
               ) : (
                 <div className="flex flex-col gap-3 max-w-sm mx-auto">
-                  <button onClick={handleLocationRequest} disabled={geoLoading} className="btn-primary py-4">
+                  <motion.button
+                    onClick={handleLocationRequest}
+                    disabled={geoLoading}
+                    className="btn-primary py-4"
+                    whileHover={!geoLoading ? { scale: 1.02 } : {}}
+                    whileTap={!geoLoading ? { scale: 0.97 } : {}}
+                    transition={EASE_SPRING_SNAPPY}
+                  >
                     {geoLoading ? (
                       <span className="flex items-center gap-2">
                         <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -394,7 +460,7 @@ export default function BuildPage() {
                     ) : (
                       <span>📍 Allow Location</span>
                     )}
-                  </button>
+                  </motion.button>
                   <button onClick={handleDemo} className="btn-secondary py-3">
                     Skip — use demo data
                   </button>
@@ -405,18 +471,44 @@ export default function BuildPage() {
 
           {/* ── Step 3: Generate ──── */}
           {step === 3 && (
-            <motion.div key="generate" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}
+            <motion.div
+              key="generate"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: EASE_OUT_EXPO }}
               className="text-center"
             >
               {generating ? (
                 <div className="py-12 sm:py-16">
-                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-                    className="w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-6 rounded-2xl bg-linear-to-br from-rally-500 to-rally-pink flex items-center justify-center text-xl sm:text-2xl"
-                  >
-                    🗺️
-                  </motion.div>
+                  {/* Orbital loader */}
+                  <div className="relative w-20 h-20 mx-auto mb-8">
+                    {/* Outer ring */}
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                      className="absolute inset-0 rounded-full"
+                      style={{
+                        border: '2px solid transparent',
+                        borderTopColor: '#a855f7',
+                        borderRightColor: '#ec4899',
+                      }}
+                    />
+                    {/* Inner ring — counter-rotate */}
+                    <motion.div
+                      animate={{ rotate: -360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                      className="absolute inset-3 rounded-full"
+                      style={{
+                        border: '2px solid transparent',
+                        borderTopColor: 'rgba(168,85,247,0.45)',
+                      }}
+                    />
+                    {/* Center icon */}
+                    <div className="absolute inset-0 flex items-center justify-center text-2xl">🗺️</div>
+                  </div>
 
-                  {/* Stage-by-stage progress */}
+                  {/* Stage progress */}
                   <div className="max-w-xs mx-auto space-y-3 text-left">
                     {STAGE_ORDER.map(stage => {
                       const stageIdx = STAGE_ORDER.indexOf(stage);
@@ -433,7 +525,14 @@ export default function BuildPage() {
                         >
                           <span className="w-5 h-5 flex items-center justify-center text-sm shrink-0">
                             {isDone ? (
-                              <span className="text-emerald-400">✓</span>
+                              <motion.span
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                                className="text-emerald-400"
+                              >
+                                ✓
+                              </motion.span>
                             ) : isCurrent ? (
                               <span className="w-4 h-4 border-2 border-rally-400/30 border-t-rally-400 rounded-full animate-spin block" />
                             ) : (
@@ -447,10 +546,32 @@ export default function BuildPage() {
                       );
                     })}
                   </div>
+
+                  {/* Active stage description */}
+                  <AnimatePresence mode="wait">
+                    {generatingStage && (
+                      <motion.p
+                        key={generatingStage}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -6 }}
+                        transition={{ duration: 0.25 }}
+                        className="text-center text-xs text-text-muted mt-6"
+                      >
+                        {STAGE_DESCRIPTIONS[generatingStage]}
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
                 </div>
               ) : (
                 <>
-                  <div className="text-4xl sm:text-5xl mb-4 sm:mb-6">🚀</div>
+                  <motion.div
+                    animate={{ y: [0, -6, 0] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                    className="text-4xl sm:text-5xl mb-4 sm:mb-6"
+                  >
+                    🚀
+                  </motion.div>
                   <h1 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-3">Ready to Rally?</h1>
                   <p className="text-sm sm:text-base text-text-secondary mb-4 max-w-md mx-auto">
                     Your {prefs.vibe} outing for {prefs.groupType === 'solo' ? 'one' : prefs.groupType} is about to be crafted.
@@ -479,14 +600,17 @@ export default function BuildPage() {
                     </div>
                   </div>
 
-                  <button
+                  <motion.button
                     onClick={handleGenerate}
                     disabled={!location}
-                    className="btn-primary text-base sm:text-lg px-8 sm:px-10 py-4 w-full sm:w-auto disabled:opacity-40 disabled:cursor-not-allowed"
+                    whileHover={location ? { scale: 1.03 } : {}}
+                    whileTap={location ? { scale: 0.97 } : {}}
+                    transition={EASE_SPRING_SNAPPY}
+                    className="btn-primary text-base sm:text-lg px-8 sm:px-10 py-4 w-full sm:w-auto disabled:opacity-40 disabled:cursor-not-allowed animate-glow-pulse"
                   >
                     <span>Generate My Route</span>
                     <span>✨</span>
-                  </button>
+                  </motion.button>
                 </>
               )}
             </motion.div>
@@ -498,29 +622,43 @@ export default function BuildPage() {
       {!generating && (
         <div className="sticky-bottom-cta md:relative md:max-w-2xl md:mx-auto md:w-full md:px-5 md:pb-8">
           <div className="flex gap-3 mb-[calc(60px+env(safe-area-inset-bottom,0px))] md:mb-0">
-            <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0}
+            <motion.button
+              onClick={() => setStep(s => Math.max(0, s - 1))}
+              disabled={step === 0}
               className="btn-secondary flex-1 sm:flex-none disabled:opacity-30 disabled:cursor-not-allowed py-3"
+              whileTap={step > 0 ? { scale: 0.97 } : {}}
+              transition={EASE_SPRING_SNAPPY}
             >
               ← Back
-            </button>
+            </motion.button>
             {canProceed ? (
-              <button onClick={() => {
-                // Auto-enter demo if skipping past location step without setting location
-                if (step === 2 && !location) {
-                  handleDemo();
-                }
-                setStep(s => s + 1);
-              }}
+              <motion.button
+                onClick={() => {
+                  if (step === 2 && !location) {
+                    handleDemo();
+                  }
+                  setStep(s => s + 1);
+                }}
                 className="btn-primary flex-1 sm:flex-none py-3"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                transition={EASE_SPRING_SNAPPY}
               >
                 <span>Next</span>
                 <span>→</span>
-              </button>
+              </motion.button>
             ) : (
-              <button onClick={handleGenerate} disabled={!location} className="btn-primary flex-1 sm:flex-none py-3 disabled:opacity-40 disabled:cursor-not-allowed">
+              <motion.button
+                onClick={handleGenerate}
+                disabled={!location}
+                className="btn-primary flex-1 sm:flex-none py-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                whileHover={location ? { scale: 1.02 } : {}}
+                whileTap={location ? { scale: 0.97 } : {}}
+                transition={EASE_SPRING_SNAPPY}
+              >
                 <span>Generate</span>
                 <span>✨</span>
-              </button>
+              </motion.button>
             )}
           </div>
         </div>
