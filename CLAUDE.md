@@ -66,6 +66,391 @@ ClerkProvider         ← wraps <html> (server-safe)
 - `convex/preferences.ts` — `getPreferences`, `updatePreferences` (upsert)
 - `convex/badges.ts` — `getBadges`, `updateBadge` (upsert), `importLocalBadges`
 
+## 🎛️ Route Editor Studio (Phase 12)
+
+Rally's `/route` page has been upgraded from a basic 503-line monolith into a **premium interactive itinerary studio** with AI-powered quick actions, drag-and-drop reordering, real-time map sync, stop locking, route quality metrics, and full undo/redo support.
+
+### Route Editor Architecture
+
+The editor is powered by three core systems:
+
+#### 1. **Central State Hook (`useRouteEditor`)**
+
+- **File**: `src/hooks/useRouteEditor.ts` (~260 lines)
+- **Purpose**: Single source of truth for all route mutations and UI state
+- **State managed**:
+  - `route: GeneratedRoute | null` — current itinerary
+  - `undoStack: GeneratedRoute[]` — up to 20 prior snapshots
+  - `redoStack: GeneratedRoute[]` — forward history
+  - `lockedStopIds: Set<string>` — pinned stops (AI edits skip these)
+  - `activeStopIndex: number | null` — highlighted stop on map
+  - `isEditing: boolean` — AI call in progress
+  - `editingIntent: EditIntent | null` — which action triggered the edit
+  - `editReason: string` — why the route changed
+  - `alternativesForIndex: number | null` — alternatives panel for which stop
+  - `allRevealed: boolean` — all stops animated in
+  - `revealed: Set<number>` — which stops have animated in
+
+- **Key pattern - `applyMutation(newRoute, reason)`**:
+
+  ```typescript
+  // Push current route to undo stack (keep last 20), clear redo, set new route,
+  // sync to localStorage, optionally set edit reason
+  setUndoStack(prev => [...prev.slice(-19), route!]);
+  setRedoStack([]);
+  setRoute(newRoute);
+  setCurrentRoute(newRoute); // localStorage sync
+  ```
+
+- **Actions** (all return `Promise<void>`):
+  - **Synchronous**: `handleComplete(i)`, `handleRate(i, rating)`, `handleReorder(oldIdx, newIdx)`, `handleDeleteStop(i)`, `handleToggleLock(i)`, `handleSetActiveStop(i)`, `handleShowAlternatives(i | null)`, `handleSelectAlternative(i, place)`, `handleUndo()`, `handleRedo()`, `clearEditReason()`
+  - **AI-powered async**: `handleRerollAI(i)`, `handleWildcard()`, `handleMakeCheaper()`, `handleMakeMoreFun()`, `handleMakeShorter()`, `handleMakeChill()`, `handleOptimizeOrder()`
+  - **Persistence**: `handleSave()`, `handleFinish()`
+
+- **AI action pattern**:
+
+  ```typescript
+  async function handleWildcard() {
+    if (!route || isEditing) return;
+    setIsEditing(true);
+    try {
+      const res = await fetch('/api/edit-route', {
+        method: 'POST',
+        body: JSON.stringify({
+          route, intent: 'wildcard', lockedStopIds: [...lockedStopIds],
+          preferences: getPreferences(), candidatePool: getCandidatePool()?.places ?? []
+        })
+      });
+      const data: EditRouteResponse = await res.json();
+      applyMutation(data.route, data.reason);
+    } catch {
+      // Fallback: deterministic function
+      applyMutation(addWildcardStop(route, getAvailablePlaces(route), getPreferences()));
+    } finally {
+      setIsEditing(false);
+    }
+  }
+  ```
+
+#### 2. **AI Route Editing API (`/api/edit-route`)**
+
+- **File**: `src/app/api/edit-route/route.ts` (~370 lines)
+- **Endpoint**: `POST /api/edit-route`
+- **Request shape**:
+
+  ```typescript
+  interface EditRouteRequest {
+    route: GeneratedRoute;
+    intent: EditIntent; // 'wildcard'|'cheaper'|'more-fun'|'shorter'|'more-chill'|'optimize-order'|'swap-stop'
+    targetStopIndex?: number; // for 'swap-stop'
+    lockedStopIds: string[]; // IDs that AI must preserve
+    preferences: UserPreferences;
+    candidatePool: ScoredPlace[]; // available replacements
+  }
+  ```
+
+- **Response shape**:
+
+  ```typescript
+  interface EditRouteResponse {
+    route: GeneratedRoute; // full updated route
+    changedStopIds: string[]; // which stops were added/changed
+    reason: string; // "Added a wildcard coffee spot to boost variety"
+    perStopReasons?: Record<string, string>; // optional per-stop explanations
+  }
+  ```
+
+- **Processing pipeline**:
+  1. **Validation**: Check request shape, candidate pool freshness, locked stop validity
+  2. **Prompt construction**:
+     - System prompt: Instructs AI that it can only select from locked stops or the provided candidate pool (no hallucinations)
+     - User prompt: Shows current route with locked flags, intent-specific instructions ("Replace the most expensive unlocked stop with a cheaper option from candidates"), top 35 candidates sorted by `vibeFitScore`
+  3. **OpenRouter call** (same pattern as `/api/plan`): Uses existing `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`
+  4. **Validation**: Checks response has correct intent-specific stop count, no duplicates, all new IDs exist in pool, all locked IDs preserved
+  5. **Retry**: One automatic retry if validation fails (with failure appended to prompt)
+  6. **Fallback**: If AI fails twice, applies deterministic equivalent (see "Intent Fallback Mapping" below)
+  7. **Assembly**: Merges AI selections back into full `RouteStop[]`, preserving unchanged stops' `completed` and `rating` fields
+
+- **Intent fallback mapping** (deterministic functions called on AI failure):
+
+  | Intent | Fallback Function |
+  | --- | --- |
+  | `wildcard` | `addWildcardStop()` |
+  | `cheaper` | `makeCheaper()` |
+  | `more-fun` | `makeMoreFun()` |
+  | `shorter` | `deleteStop(route, longestStopIndex)` |
+  | `more-chill` | `makeMoreChill()` |
+  | `optimize-order` | `optimizeOrder()` |
+  | `swap-stop` | `rerollStop(route, targetStopIndex)` |
+
+#### 3. **Route Quality Scoring (`route-quality.ts`)**
+
+- **File**: `src/lib/route-quality.ts`
+- **Purpose**: Evaluate route quality on a 0–100 scale with detailed breakdown
+- **Main export**:
+
+  ```typescript
+  export function computeRouteQuality(route: GeneratedRoute, prefs: UserPreferences): RouteQualityResult
+  ```
+
+  Returns:
+
+  ```typescript
+  interface RouteQualityResult {
+    score: number; // 0–100
+    label: 'Rough Draft' | 'Getting There' | 'Solid Plan' | 'Strong Night' | 'Elite Route';
+    breakdown: {
+      variety: number; // unique categories / stop count × 25
+      coherence: number; // avg vibeFitScore / 10 × 25
+      budgetFit: number; // 25 if under budget, degrades otherwise
+      closingStrength: number; // 25 if last stop is restaurant/bar/dessert/nightlife/scenic/attraction, else 10
+      chainPenalty: number; // −3 per chain stop
+    };
+  }
+  ```
+
+- **Helper exports**:
+  - `getQualityColor(label)` → Tailwind text color class (gray / yellow / green / purple)
+  - `getQualityBarColor(label)` → Tailwind gradient class for score bar animation
+  - `getWeakestFactor(breakdown)` → Human-readable improvement hint (e.g., "Add more variety by swapping a chain restaurant for an indie spot")
+
+### Route Editor Components
+
+Five new purpose-built components compose the editor UI:
+
+#### **`RouteMap.tsx`** (Reactive MapLibre Integration)
+
+- **File**: `src/components/route/RouteMap.tsx` (~190 lines)
+- **Purpose**: Always-in-sync map showing current itinerary with live marker updates
+- **Critical pattern** (two separate effects):
+
+  ```typescript
+  // Effect 1: Initialize map ONCE (empty deps)
+  useEffect(() => {
+    // Create Map instance, load dark tile style, set mapLoaded=true on 'load' event
+  }, []);
+
+  // Effect 2: Update markers + polyline on ANY route change
+  useEffect(() => {
+    // Clear old markers, update GeoJSON polyline source, redraw markers
+    // Fit bounds only when stop IDs change (avoid refitting on active highlight)
+  }, [route, activeStopIndex, lockedStopIds, mapLoaded, onStopClick]);
+  ```
+
+  **Why two effects?** The first ensures the map initializes exactly once (no memory leaks, no remounts). The second stays reactive to all content changes—reordering, locking, AI edits, etc.
+
+- **Marker styles**:
+  - **Normal**: Purple/pink gradient (`#a855f7` → `#ec4899`)
+  - **Active** (highlighted): Larger (44px), white border glow
+  - **Completed**: Green gradient (`#10b981` → `#06b6d4`)
+  - **Locked**: Amber background with 🔒 emoji overlay at bottom-right corner
+
+- **Polyline**: Purple dashed line connecting all stops, updated via GeoJSON source
+
+#### **`StopCard.tsx`** (Draggable Sortable Stop)
+
+- **File**: `src/components/route/StopCard.tsx` (~180 lines)
+- **Purpose**: Individual stop card with all editing actions
+- **Drag-and-drop**: Uses `useSortable` from `@dnd-kit/sortable`
+  - `disabled: isLocked` — locked stops cannot be picked up
+  - Drag handle: SVG grip dots (⠿) with `listeners` spread from `useSortable`
+  - Visual feedback: Drag state adds `shadow-2xl` + `scale(1.02)` via Framer Motion
+
+- **Stop info**: Category emoji (gradient bg), name, category label, address, cost, estimated minutes
+- **Metadata**: Distance from previous stop, travel time, lock status, tags (first 3)
+- **Reason text**: Base reason + italic AI reason (if different from base)
+- **Action chips** (horizontally scrollable on mobile):
+  1. **Mark done** (✓ or "Mark done") — toggle completed state
+  2. **Swap** (🎲) — AI reroll; `disabled` when isEditing
+  3. **Alternatives** (✦) — opens bottom sheet to browse same-category options; `disabled` when isEditing
+  4. **Directions** (🧭) — link to Google Maps at stop coords
+  5. **Delete** (✕) — removes stop, recalculates route; only visible if not locked
+
+- **Lock button**: Top-right corner of card, toggle lock icon (🔒 filled amber / 🔓 muted), prevents drag and AI edits
+
+- **Editing overlay**: When `isEditing === true`, shows semi-transparent blur with spinner + "Updating…" text (prevents interaction during AI call)
+
+#### **`AlternativesSheet.tsx`** (Bottom Sheet Alternative Finder)
+
+- **File**: `src/components/route/AlternativesSheet.tsx` (~160 lines)
+- **Purpose**: Slide-up bottom sheet showing 4–5 curated alternative stops
+- **Animation**: Framer Motion spring: `initial={{ y: '100%' }}` → `animate={{ y: 0 }}`, exit same
+- **Position**: `fixed bottom-0 inset-x-0 z-50 max-h-[65vh]` (above mobile nav, scrollable)
+- **Backdrop**: Semi-transparent overlay on tap to close sheet
+
+- **Alternative filtering logic** (`getAlternatives(stopIndex, route)`):
+
+  ```typescript
+  // 1. Fetch candidate pool
+  const pool = getCandidatePool();
+  if (!pool || pool is stale (> 2 hours)) return [];
+
+  // 2. Get target stop category
+  const target = route.stops[stopIndex];
+
+  // 3. Filter candidates:
+  //    - Not already used in route
+  //    - Same category as target
+  //    - outingSuitabilityScore > 0
+  //    - Sort by vibeFitScore descending
+  //    - Take top 5
+
+  // 4. If < 2 results, widen to ANY suitable candidates (by vibeFitScore)
+  ```
+
+- **Each alternative card** shows:
+  - Category emoji (gradient bg)
+  - Name, category label, chain indicator (amber "· chain" if `likelyChain`)
+  - Cost estimate in rally-400, cost diff vs current stop (green if cheaper)
+  - Vibe fit score (0–10) as colored bar (green ≥7, yellow ≥4, gray <4)
+  - Tags (first 3)
+
+#### **`RouteStats.tsx`** (Live Statistics Bar)
+
+- **File**: `src/components/route/RouteStats.tsx` (~60 lines)
+- **Purpose**: Horizontally scrolling chip row showing route metrics
+- **Chips** (updated reactively on any route change):
+  - 💰 Cost estimate (e.g., "~$38")
+  - ⏱️ Total time (e.g., "~110 min")
+  - 📍 Stop count (e.g., "4 stops")
+  - 🏠 Indoor percentage (e.g., "75% indoor")
+  - 🧭 Travel mode (Walking / Transit)
+  - Category mix (e.g., 🍽️ "2 restaurants", 🎭 "1 museum")
+
+- **Styling**: `no-scrollbar` utility for clean horizontal scroll on mobile
+
+#### **`RouteQualityMeter.tsx`** (Score Visualization)**
+
+- **File**: `src/components/route/RouteQualityMeter.tsx` (~55 lines)
+- **Purpose**: Animated score bar + quality label + improvement hint
+- **Layout**: `[Quality Label] [Animated Score Bar] [Score Number] [Toggle ▾/▸]`
+- **Label color** (dynamic):
+  - Gray: Rough Draft
+  - Yellow: Getting There
+  - Green: Solid Plan / Strong Night
+  - Purple: Elite Route
+
+- **Score bar**: Animated fill 0–100% via Framer Motion, gradient `bg-linear-to-r from-rally-500 to-rally-pink`
+- **Improve hint** (optional popover):
+  - Click toggle to expand/collapse
+  - Shows weakest factor from quality breakdown (e.g., "Tip: Add more variety by swapping a chain restaurant for an indie spot")
+
+### Type System Updates
+
+#### **Type Additions** (`src/lib/types.ts`)
+
+```typescript
+// ── Route Editor Types ────────────────────────────────────────────────
+
+export type EditIntent =
+  | 'wildcard'
+  | 'cheaper'
+  | 'more-fun'
+  | 'shorter'
+  | 'more-chill'
+  | 'optimize-order'
+  | 'swap-stop';
+
+export interface EditRouteRequest {
+  route: GeneratedRoute;
+  intent: EditIntent;
+  targetStopIndex?: number;
+  lockedStopIds: string[];
+  preferences: UserPreferences;
+  candidatePool: ScoredPlace[]; // was Place[]
+}
+
+export interface EditRouteResponse {
+  route: GeneratedRoute;
+  changedStopIds: string[];
+  reason: string;
+  perStopReasons?: Record<string, string>;
+}
+
+export interface RouteQualityResult {
+  score: number;
+  label: 'Rough Draft' | 'Getting There' | 'Solid Plan' | 'Strong Night' | 'Elite Route';
+  breakdown: {
+    variety: number;
+    coherence: number;
+    budgetFit: number;
+    closingStrength: number;
+    chainPenalty: number;
+  };
+}
+```
+
+#### **Breaking Type Change: `CandidatePool.places`**
+
+- **Before**: `CandidatePool.places: Place[]`
+- **After**: `CandidatePool.places: ScoredPlace[]`
+- **Why**: Alternatives filtering needs `vibeFitScore` and `outingSuitabilityScore`. Routes from `/api/plan` already include these fields; upgrading the type makes them formally available throughout the editor.
+- **Impact**: Any code that constructs `CandidatePool` must now supply scored places. See `src/app/build/page.tsx` fallback for minimal scoring stubs.
+
+### Route Engine Additions
+
+Four new exports in `src/lib/route-engine.ts`:
+
+#### **`recalcDistances(stops: RouteStop[]): RouteStop[]`**
+- Pure function: recomputes `distanceFromPrev` and `travelTimeFromPrev` for all stops
+- Uses `getDistanceBetween()` + `estimateWalkTime()` from utils
+- Called after drag-and-drop reorder and after deleteStop
+- Preserves `completed` and `rating` fields
+
+#### **`deleteStop(route: GeneratedRoute, index: number): GeneratedRoute`**
+- Filters out stop at index
+- Remaps all `.order` fields to maintain sequence
+- Calls `recalcDistances` on remaining stops
+- Recalculates `totalCost`, `totalTime`
+- Returns updated route
+
+#### **`optimizeOrder(route: GeneratedRoute, lockedIds: Set<string>): GeneratedRoute`**
+- **Nearest-neighbor TSP algorithm**:
+  1. Separates route into locked (pinned) and unlocked stops
+  2. Finds nearest-neighbor path for unlocked stops only
+  3. Merges back: locked stops stay at original indices, gaps filled with reordered unlocked
+  4. Calls `recalcDistances` to update distances
+- Respects stop locking — locked stops never move
+- Returns optimized route
+
+#### **`makeMoreChill(route: GeneratedRoute, allPlaces: Place[], preferences: UserPreferences, lockedIds: Set<string>): GeneratedRoute`**
+- Finds highest-energy unlocked stop (e.g., nightlife, busy attraction)
+- Replaces with lower-energy alternative from allPlaces
+- Used as fallback for `more-chill` intent if AI unavailable
+
+### Updated `/route` Page
+
+- **File**: `src/app/route/page.tsx` (~440 lines, full rewrite)
+- **State management**: Imports `useRouteEditor()` hook for all mutations
+- **Drag-and-drop**: Wraps stop list in `DndContext` + `SortableContext`
+  - Sensor: `PointerSensor` with 8px activation constraint (touch-friendly)
+  - `handleDragEnd`: Validates that locked stops don't get displaced, calls `handleReorder`
+
+- **Quick actions grid** (7 buttons, 2×2 on mobile, 4-col on sm:):
+  1. 🎲 **Wildcard** — Add random suitable stop
+  2. 💸 **Cheaper** — Swap expensive stop for budget option
+  3. 🎉 **More Fun** — Boost vibe with higher-energy stops
+  4. 🌿 **More Chill** — Reduce intensity, more relaxing stops
+  5. 🗺️ **Optimize Order** — Reorder for shorter travel time
+  6. ⏱️ **Shorter** — Delete longest stop
+  7. ❤️ **Save** — Persist to localStorage + Convex
+
+- **Loading states**:
+  - When `isEditing === true`, all stop cards show overlay with spinner
+  - Quick action buttons show spinner on active action
+  - EditReason banner appears below header with dismissible `✕`
+
+- **Progress bar**: Animated fill showing completed stops / total stops
+- **Undo/Redo bar**: Visible only when `canUndo || canRedo`
+- **AlternativesSheet**: Rendered at page level, controlled by `alternativesForIndex` state
+- **Sticky bottom CTA**: "Finish Route" + "Build Another"
+
+### Dependency Addition
+
+- **Package**: Added `@dnd-kit/core@latest`, `@dnd-kit/sortable@latest`, `@dnd-kit/utilities@latest`
+- **Installation**: `npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities`
+- **Note**: Minor peer dependency warnings expected but functionality unaffected with React 19
+
 ## 🧠 AI Planning & Intelligent Routing (Phases 1-11)
 
 ### Major Bugs Fixed
