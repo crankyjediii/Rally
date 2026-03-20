@@ -1,0 +1,414 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --color-rally-50: #faf5ff;
+  --color-rally-100: #f3e8ff;
+  --color-rally-200: #e9d5ff;
+  --color-rally-300: #d8b4fe;
+  --color-rally-400: #c084fc;
+  --color-rally-500: #a855f7;
+  --color-rally-600: #9333ea;
+  --color-rally-700: #7e22ce;
+  --color-rally-800: #6b21a8;
+  --color-rally-900: #581c87;
+
+  --color-rally-orange: #f97316;
+  --color-rally-pink: #ec4899;
+  --color-rally-cyan: #06b6d4;
+  --color-rally-emerald: #10b981;
+
+  --color-surface-primary: #0a0a0f;
+  --color-surface-secondary: #12121a;
+  --color-surface-card: #1a1a26;
+  --color-surface-elevated: #222233;
+  --color-surface-glass: rgba(255, 255, 255, 0.04);
+
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+
+  --color-border-default: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Base ───────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Support dvh for real viewport height on mobile */
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Prevent overscroll bounce on iOS */
+  overscroll-behavior-y: none;
+  /* Safe area padding for notched devices */
+  padding-top: env(safe-area-inset-top);
+  min-height: 100dvh;
+}
+
+::selection {
+  background: rgba(168, 85, 247, 0.3);
+  color: white;
+}
+
+/* Disable double-tap zoom on interactive elements */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
+/* ── Glass Card ────────────────────────────────────────────────── */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1rem;
+}
+
+.glass-card-hover {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+/* Touch press feedback */
+.glass-card-hover:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+/* ── Gradient Text ─────────────────────────────────────────────── */
+
+.gradient-text {
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-blue {
+  background: linear-gradient(135deg, #06b6d4 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Primary Button ────────────────────────────────────────────── */
+
+.btn-primary {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 2rem;
+  min-height: 48px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: white;
+  background: linear-gradient(135deg, #a855f7, #ec4899);
+  border: none;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  user-select: none;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(168, 85, 247, 0.4);
+}
+.btn-primary:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #ec4899, #f97316);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.btn-primary:hover::before {
+  opacity: 1;
+}
+.btn-primary > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Secondary Button ──────────────────────────────────────────── */
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  min-height: 44px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.625rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.btn-secondary:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.12);
+  transition: transform 0.1s ease;
+}
+
+/* ── Chip ──────────────────────────────────────────────────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  min-height: 36px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+}
+.chip:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
+.chip.active {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+}
+
+/* ── Option Card (for build selectors) ─────────────────────────── */
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1rem 0.75rem;
+  min-height: 80px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.875rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+  text-align: center;
+}
+.option-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+.option-card:active {
+  transform: scale(0.96);
+  transition: transform 0.1s ease;
+}
+.option-card.active {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.4);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.1);
+}
+
+/* ── Animations ────────────────────────────────────────────────── */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(168, 85, 247, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(168, 85, 247, 0.4); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+  background-image: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* ── Gradient BG Orbs ──────────────────────────────────────────── */
+
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+/* Reduce orb sizes on mobile to prevent overflow */
+@media (max-width: 640px) {
+  .bg-orb {
+    filter: blur(60px);
+    opacity: 0.1;
+    max-width: 280px;
+    max-height: 280px;
+  }
+}
+
+/* ── Demo Banner ───────────────────────────────────────────────── */
+
+.demo-banner {
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  text-align: center;
+  color: #f97316;
+}
+
+/* ── Page Transition ───────────────────────────────────────────── */
+
+.page-enter {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 0.4s ease;
+}
+
+/* ── MapLibre Override ─────────────────────────────────────────── */
+
+.maplibregl-map {
+  border-radius: 1rem;
+}
+.maplibregl-popup-content {
+  background: #1a1a26 !important;
+  color: #f5f5f7 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 0.75rem !important;
+  padding: 0.75rem 1rem !important;
+  font-family: 'Inter', sans-serif !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+}
+.maplibregl-popup-tip {
+  border-top-color: #1a1a26 !important;
+}
+.maplibregl-ctrl-group {
+  background: #1a1a26 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 0.5rem !important;
+}
+.maplibregl-ctrl-group button {
+  filter: invert(1);
+  min-width: 36px;
+  min-height: 36px;
+}
+
+/* ── Safe Area Helpers ─────────────────────────────────────────── */
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Mobile bottom nav spacer ──────────────────────────────────── */
+/* Ensures content doesn't hide behind the fixed bottom nav on mobile */
+
+.mobile-nav-spacer {
+  height: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 768px) {
+  .mobile-nav-spacer {
+    height: 0;
+  }
+}
+
+/* ── Sticky bottom CTA bar ─────────────────────────────────────── */
+
+.sticky-bottom-cta {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, var(--color-surface-primary) 80%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (min-width: 768px) {
+  .sticky-bottom-cta {
+    position: relative;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ── Hide scrollbar utility ────────────────────────────────────── */
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
