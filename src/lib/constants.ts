@@ -196,6 +196,31 @@ export const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/sty
 
 export const DEFAULT_CENTER: [number, number] = [-73.9857, 40.7484]; // NYC
 
+// ── Stripe Add-on Price IDs (client-safe) ────────────────────────────
+// Stripe price IDs are not secrets — safe to expose in the browser via NEXT_PUBLIC_ vars.
+// Populated at build time from environment variables.
+
+export const ADDON_PRICE_IDS: Record<string, string> = {
+  'date-planner': process.env.NEXT_PUBLIC_STRIPE_PRICE_ADDON_DATE_PLANNER ?? '',
+  'hidden-gems':  process.env.NEXT_PUBLIC_STRIPE_PRICE_ADDON_HIDDEN_GEMS  ?? '',
+  'group-mode':   process.env.NEXT_PUBLIC_STRIPE_PRICE_ADDON_GROUP_VOTING ?? '',
+  'weekly-drops': process.env.NEXT_PUBLIC_STRIPE_PRICE_ADDON_WEEKLY_DROPS ?? '',
+};
+
+// Subscription price IDs by tier and period.
+// These use NEXT_PUBLIC_ so the premium page can build checkout requests without
+// an extra API round-trip. Price IDs are not secrets.
+export const SUBSCRIPTION_PRICE_IDS = {
+  'main-event': {
+    monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_MAIN_EVENT_MONTHLY ?? '',
+    yearly:  process.env.NEXT_PUBLIC_STRIPE_PRICE_MAIN_EVENT_YEARLY  ?? '',
+  },
+  'city-unlimited': {
+    monthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_CITY_UNLIMITED_MONTHLY ?? '',
+    yearly:  process.env.NEXT_PUBLIC_STRIPE_PRICE_CITY_UNLIMITED_YEARLY  ?? '',
+  },
+} as const;
+
 // ── localStorage Keys ────────────────────────────────────────────────
 
 export const STORAGE_KEYS = {

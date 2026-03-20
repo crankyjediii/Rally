@@ -42,10 +42,10 @@ function getAlternatives(stopIndex: number, route: GeneratedRoute): ScoredPlace[
 
 function VibeFitBar({ score }: { score: number }) {
   const pct = Math.round((score / 10) * 100);
-  const color = score >= 7 ? 'bg-emerald-400' : score >= 4 ? 'bg-yellow-400' : 'bg-white/20';
+  const color = score >= 7 ? 'bg-emerald-500' : score >= 4 ? 'bg-yellow-500' : 'bg-text-muted/30';
   return (
     <div className="flex items-center gap-1.5">
-      <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+      <div className="flex-1 h-1 rounded-full bg-surface-elevated overflow-hidden">
         <motion.div
           className={`h-full rounded-full ${color}`}
           initial={{ width: 0 }}
@@ -99,7 +99,7 @@ export default function AlternativesSheet({
             {/* Handle — pulse entrance */}
             <div className="flex justify-center pt-3 pb-2 shrink-0">
               <motion.div
-                className="w-10 h-1 rounded-full bg-white/20"
+                className="w-10 h-1 rounded-full bg-text-muted/25"
                 initial={{ scaleX: 0.4, opacity: 0 }}
                 animate={{ scaleX: 1, opacity: 1 }}
                 transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -125,7 +125,7 @@ export default function AlternativesSheet({
               <motion.button
                 onClick={onClose}
                 whileTap={{ scale: 0.85 }}
-                className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm active:bg-white/20"
+                className="w-8 h-8 rounded-full bg-surface-elevated flex items-center justify-center text-sm active:bg-surface-card"
                 aria-label="Close alternatives"
               >
                 ✕
@@ -188,7 +188,7 @@ export default function AlternativesSheet({
                         className="w-full glass-card-hover p-3.5 text-left flex items-start gap-3"
                       >
                         {/* Emoji */}
-                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-rally-500/15 to-rally-pink/15 flex items-center justify-center text-lg shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-rally-lavender/40 to-rally-blush/40 flex items-center justify-center text-lg shrink-0">
                           {categoryEmoji(alt.category)}
                         </div>
 
@@ -199,15 +199,15 @@ export default function AlternativesSheet({
                               <div className="font-semibold text-sm truncate">{alt.name}</div>
                               <div className="text-[11px] text-text-muted mt-0.5">
                                 {categoryLabel(alt.category)}
-                                {isChain && <span className="ml-1.5 text-amber-400/70">· chain</span>}
+                                {isChain && <span className="ml-1.5 text-status-warning">· chain</span>}
                               </div>
                             </div>
                             <div className="shrink-0 text-right">
-                              <div className="text-sm font-semibold text-rally-400">
+                              <div className="text-sm font-semibold text-rally-adaptive">
                                 {formatCurrency(alt.estimatedCost)}
                               </div>
                               {costDiff !== 0 && (
-                                <div className={`text-[10px] font-medium ${costDiff < 0 ? 'text-emerald-400' : 'text-text-muted'}`}>
+                                <div className={`text-[10px] font-medium ${costDiff < 0 ? 'text-status-success' : 'text-text-muted'}`}>
                                   {costDiff > 0 ? `+${formatCurrency(costDiff)}` : formatCurrency(costDiff)}
                                 </div>
                               )}
@@ -224,7 +224,7 @@ export default function AlternativesSheet({
                           {alt.tags && alt.tags.length > 0 && (
                             <div className="flex gap-1 mt-1.5 flex-wrap">
                               {alt.tags.slice(0, 3).map(t => (
-                                <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/5 text-text-muted">
+                                <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-surface-elevated text-text-muted">
                                   {t}
                                 </span>
                               ))}

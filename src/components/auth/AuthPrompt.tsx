@@ -18,8 +18,8 @@ export function AuthPrompt({ title, description, icon = '🔐' }: AuthPromptProp
       animate="visible"
       className="glass-card p-8 sm:p-12 text-center"
       style={{
-        background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(236,72,153,0.08))',
-        borderColor: 'rgba(139,92,246,0.2)',
+        background: 'linear-gradient(135deg, var(--accent-lavender, rgba(139,92,246,0.08)), var(--accent-blush, rgba(236,72,153,0.08)))',
+        borderColor: 'var(--border-hover)',
       }}
     >
       {/* Icon with glow blob */}
@@ -42,8 +42,7 @@ export function AuthPrompt({ title, description, icon = '🔐' }: AuthPromptProp
       </motion.h2>
       <motion.p
         variants={fadeUp}
-        className="text-sm mb-8 max-w-sm mx-auto"
-        style={{ color: 'var(--text-secondary, #a1a1aa)' }}
+        className="text-sm mb-8 max-w-sm mx-auto text-text-secondary"
       >
         {description}
       </motion.p>
@@ -76,8 +75,7 @@ export function AuthPrompt({ title, description, icon = '🔐' }: AuthPromptProp
 
       <motion.p
         variants={fadeUp}
-        className="text-xs mt-6"
-        style={{ color: 'var(--text-muted, #71717a)' }}
+        className="text-xs mt-6 text-text-muted"
       >
         Free forever · No credit card required
       </motion.p>

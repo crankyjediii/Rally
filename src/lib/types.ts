@@ -237,3 +237,17 @@ export interface RouteQualityResult {
     chainPenalty: number;
   };
 }
+
+// ── Billing Types ─────────────────────────────────────────────────────
+
+export type SubscriptionTier   = 'scout' | 'main-event' | 'city-unlimited';
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete';
+export type AddOnId            = 'date-planner' | 'hidden-gems' | 'group-mode' | 'weekly-drops';
+
+export interface SubscriptionInfo {
+  tier:                SubscriptionTier;
+  status:              SubscriptionStatus | null;
+  currentPeriodEnd:    number | null;  // Unix timestamp (seconds)
+  cancelAtPeriodEnd:   boolean;
+  activeAddOnPriceIds: string[];
+}

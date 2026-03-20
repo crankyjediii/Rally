@@ -36,6 +36,13 @@ export const EASE_SPRING_BOUNCY = {
   damping: 18,
 };
 
+/** Silky smooth — for page-level transitions and gentle lifestyle reveals */
+export const EASE_SPRING_SILKY = {
+  type: 'spring' as const,
+  stiffness: 160,
+  damping: 22,
+};
+
 // ── Duration Constants ────────────────────────────────────────────────────────
 
 export const DUR = {
@@ -59,6 +66,23 @@ export const fadeUp: Variants = {
     transition: {
       delay: i * 0.08,
       duration: DUR.slow,
+      ease: EASE_OUT_EXPO,
+    },
+  }),
+};
+
+/**
+ * Gentle fade up — softer motion for lifestyle sections.
+ * Smaller movement, longer duration, subtler stagger.
+ */
+export const fadeUpGentle: Variants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: i * 0.06,
+      duration: 0.6,
       ease: EASE_OUT_EXPO,
     },
   }),

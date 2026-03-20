@@ -1,18 +1,51 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useUser } from '@clerk/nextjs';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
+import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import { AuthPrompt } from '@/components/auth/AuthPrompt';
+import { ManageBillingCTA } from '@/components/billing/ManageBillingCTA';
+import { useSubscription } from '@/hooks/useSubscription';
 import { ALL_BADGES } from '@/lib/constants';
+import type { SubscriptionTier } from '@/lib/types';
+
+const TIER_LABELS: Record<SubscriptionTier, string> = {
+  'scout':          'Scout · Free',
+  'main-event':     'Main Event ⭐',
+  'city-unlimited': 'City Unlimited 🏙️',
+};
+
+const TIER_COLORS: Record<SubscriptionTier, string> = {
+  'scout':          'bg-surface-elevated text-text-secondary border-border-default',
+  'main-event':     'bg-rally-500/15 text-rally-adaptive border-rally-500/30',
+  'city-unlimited': 'bg-rally-pink/15 text-rally-pink border-rally-pink/30',
+};
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-dvh bg-surface-primary flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-rally-500/40 border-t-rally-500 rounded-full animate-spin" />
+      </main>
+    }>
+      <ProfilePageInner />
+    </Suspense>
+  );
+}
+
+function ProfilePageInner() {
+  const searchParams = useSearchParams();
+  const checkoutSuccess = searchParams.get('checkout') === 'success';
+
   const { isSignedIn, isLoaded } = useUser();
   const convexUser = useQuery(api.users.getCurrentUser);
   const convexBadges = useQuery(api.badges.getBadges);
+  const { tier, sub, isLoading: subLoading } = useSubscription();
 
   // Merge Convex earned badges with the full ALL_BADGES template so unearned
   // badges still render correctly (greyed out).
@@ -58,7 +91,7 @@ export default function ProfilePage() {
   return (
     <main className="min-h-dvh">
       <Navbar />
-      <div className="bg-orb w-[300px] h-[300px] bg-rally-500 top-20 -left-20 fixed" />
+      <div className="bg-orb w-[300px] h-[300px] bg-rally-peach top-20 -left-20 fixed" />
 
       <div className="max-w-2xl mx-auto px-5 py-4 sm:py-8">
         {/* Profile Header */}
@@ -97,6 +130,56 @@ export default function ProfilePage() {
           </div>
         </motion.div>
 
+        {/* Checkout success banner */}
+        {checkoutSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-4 mb-4 sm:mb-5
+              bg-linear-to-br from-rally-500/15 to-rally-pink/15
+              ring-1 ring-rally-500/30 text-center"
+          >
+            <div className="text-2xl mb-1">🎉</div>
+            <p className="font-bold text-sm">Welcome to {TIER_LABELS[tier]}!</p>
+            <p className="text-xs text-text-secondary mt-0.5">Your 7-day free trial has started.</p>
+          </motion.div>
+        )}
+
+        {/* Subscription status card */}
+        {!subLoading && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className="glass-card p-4 sm:p-5 mb-4 sm:mb-6"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-sm sm:text-base">✨ Your Plan</h3>
+              <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${TIER_COLORS[tier]}`}>
+                {TIER_LABELS[tier]}
+              </span>
+            </div>
+
+            {sub && sub.status !== 'canceled' && (
+              <p className="text-xs text-text-secondary mb-3">
+                {sub.cancelAtPeriodEnd
+                  ? `Cancels ${new Date(sub.currentPeriodEnd * 1000).toLocaleDateString()}`
+                  : `Renews ${new Date(sub.currentPeriodEnd * 1000).toLocaleDateString()}`}
+              </p>
+            )}
+
+            <div className="flex gap-2 flex-wrap">
+              {tier !== 'scout' ? (
+                <ManageBillingCTA />
+              ) : (
+                <Link href="/premium" className="btn-primary text-xs py-2 px-4">
+                  Upgrade ✨
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {/* Streak */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="glass-card p-4 sm:p-5 mb-4 sm:mb-6"
@@ -114,7 +197,7 @@ export default function ProfilePage() {
           </div>
           <div className="flex gap-1">
             {[...Array(7)].map((_, i) => (
-              <div key={i} className={`flex-1 h-2 rounded-full ${i < streakCount ? 'bg-gradient-to-r from-rally-500 to-rally-pink' : 'bg-white/5'}`} />
+              <div key={i} className={`flex-1 h-2 rounded-full ${i < streakCount ? 'bg-gradient-to-r from-rally-500 to-rally-pink' : 'bg-surface-elevated'}`} />
             ))}
           </div>
         </motion.div>
@@ -129,7 +212,7 @@ export default function ProfilePage() {
               >
                 <div className="text-xl sm:text-2xl mb-1">{badge.icon}</div>
                 <p className="text-[10px] sm:text-xs font-medium truncate">{badge.name}</p>
-                {badge.earned && <p className="text-[10px] text-rally-400 mt-0.5">Earned!</p>}
+                {badge.earned && <p className="text-[10px] text-rally-adaptive mt-0.5">Earned!</p>}
               </div>
             ))}
           </div>
@@ -144,7 +227,7 @@ export default function ProfilePage() {
             Share your referral code and both get premium features for a week.
           </p>
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex-1 glass-card px-3 sm:px-4 py-2.5 font-mono text-xs sm:text-sm text-rally-400 truncate">
+            <div className="flex-1 glass-card px-3 sm:px-4 py-2.5 font-mono text-xs sm:text-sm text-rally-adaptive truncate">
               {convexUser?.referralCode ?? '—'}
             </div>
             <button

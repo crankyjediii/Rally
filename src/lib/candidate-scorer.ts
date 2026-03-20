@@ -68,14 +68,14 @@ const VIBE_FIT_MAP: Record<Vibe, Partial<Record<PlaceCategory, number>>> = {
     bar: 4, activity: 3, arcade: 2, attraction: 3, nightlife: 2,
   },
   date: {
-    restaurant: 10, scenic: 9, dessert: 9, cafe: 7,
-    museum: 8, park: 7, attraction: 8, bookstore: 5,
-    bar: 6, activity: 6, shopping: 5, arcade: 3, nightlife: 4,
+    scenic: 10, museum: 9, attraction: 9, park: 8,
+    restaurant: 7, dessert: 7, cafe: 7, activity: 7,
+    bookstore: 6, bar: 6, shopping: 5, arcade: 3, nightlife: 4,
   },
   chaotic: {
-    arcade: 10, activity: 10, attraction: 8, dessert: 8,
-    restaurant: 7, cafe: 6, shopping: 7, scenic: 5,
-    bar: 8, nightlife: 9, park: 4, museum: 3, bookstore: 2,
+    arcade: 10, activity: 10, nightlife: 9, attraction: 8,
+    bar: 8, dessert: 7, shopping: 7, scenic: 6,
+    restaurant: 5, cafe: 5, park: 4, museum: 3, bookstore: 2,
   },
   foodie: {
     restaurant: 10, dessert: 10, cafe: 9, bar: 7,
@@ -83,34 +83,34 @@ const VIBE_FIT_MAP: Record<Vibe, Partial<Record<PlaceCategory, number>>> = {
     scenic: 3, shopping: 3, arcade: 2, activity: 3, nightlife: 5,
   },
   artsy: {
-    museum: 10, bookstore: 9, scenic: 8, cafe: 8,
-    shopping: 6, attraction: 6, park: 5, restaurant: 5,
-    dessert: 5, activity: 4, bar: 4, arcade: 2, nightlife: 3,
+    museum: 10, bookstore: 9, scenic: 8, cafe: 7,
+    shopping: 7, attraction: 7, park: 6, activity: 5,
+    restaurant: 4, dessert: 4, bar: 4, arcade: 2, nightlife: 3,
   },
   outdoorsy: {
-    park: 10, scenic: 10, activity: 7, cafe: 6,
-    restaurant: 5, attraction: 5, bookstore: 3, museum: 3,
-    dessert: 4, shopping: 2, bar: 3, arcade: 1, nightlife: 1,
+    park: 10, scenic: 10, activity: 8, attraction: 6,
+    cafe: 5, museum: 4, bookstore: 3, restaurant: 4,
+    dessert: 3, shopping: 2, bar: 3, arcade: 1, nightlife: 1,
   },
   cheap: {
-    park: 10, scenic: 8, bookstore: 7, cafe: 7, dessert: 7,
-    museum: 6, restaurant: 5, attraction: 5, activity: 5,
-    shopping: 4, bar: 3, arcade: 4, nightlife: 2,
+    park: 10, scenic: 9, bookstore: 8, museum: 7,
+    activity: 7, cafe: 6, attraction: 6, dessert: 5,
+    restaurant: 4, shopping: 4, bar: 3, arcade: 4, nightlife: 2,
   },
   'main-character': {
-    scenic: 10, attraction: 9, cafe: 8, dessert: 8, shopping: 7,
-    park: 7, museum: 6, restaurant: 6, bookstore: 5,
-    activity: 5, bar: 5, arcade: 3, nightlife: 5,
+    scenic: 10, attraction: 9, park: 8, cafe: 7,
+    shopping: 7, museum: 7, dessert: 6, bookstore: 6,
+    activity: 6, restaurant: 5, bar: 5, nightlife: 5, arcade: 3,
   },
   tourist: {
-    attraction: 10, museum: 9, scenic: 9, cafe: 7,
-    restaurant: 7, dessert: 7, park: 6, bookstore: 5,
-    shopping: 6, activity: 6, bar: 4, arcade: 3, nightlife: 4,
+    attraction: 10, museum: 9, scenic: 9, park: 7,
+    activity: 7, cafe: 6, shopping: 6, bookstore: 5,
+    restaurant: 5, dessert: 5, bar: 4, arcade: 3, nightlife: 4,
   },
   'rainy-day': {
-    cafe: 10, museum: 10, bookstore: 9, arcade: 9,
-    activity: 8, restaurant: 7, dessert: 7, shopping: 6,
-    bar: 5, nightlife: 4, attraction: 5, scenic: 2, park: 1,
+    museum: 10, bookstore: 10, cafe: 9, arcade: 9,
+    activity: 8, shopping: 7, attraction: 6, dessert: 6,
+    restaurant: 5, bar: 5, nightlife: 4, scenic: 2, park: 1,
   },
 };
 
@@ -183,4 +183,56 @@ export function filterForOuting(scored: ScoredPlace[]): ScoredPlace[] {
 export function prepareCandidates(places: Place[], vibe: Vibe): ScoredPlace[] {
   const scored = scoreCandidates(places, vibe);
   return filterForOuting(scored);
+}
+
+// ── Category Groups ─────────────────────────────────────────────────
+
+const FOOD_CATEGORIES: PlaceCategory[] = ['restaurant', 'cafe', 'dessert', 'bar'];
+
+export function isFoodCategory(category: PlaceCategory): boolean {
+  return FOOD_CATEGORIES.includes(category);
+}
+
+// ── Diversified Top-N Selection ─────────────────────────────────────
+// Ensures the top-N candidates sent to the AI have balanced category mix.
+// Caps food at 40% of slots (70% for foodie vibe).
+
+export function diversifyCandidates(
+  candidates: ScoredPlace[],
+  maxCount: number,
+  vibe: Vibe,
+): ScoredPlace[] {
+  const sorted = [...candidates].sort((a, b) => b.vibeFitScore - a.vibeFitScore);
+
+  const foodCap = vibe === 'foodie'
+    ? Math.ceil(maxCount * 0.7)
+    : Math.ceil(maxCount * 0.4);
+  const experienceCap = maxCount - foodCap;
+
+  const food: ScoredPlace[] = [];
+  const experience: ScoredPlace[] = [];
+
+  for (const c of sorted) {
+    if (isFoodCategory(c.category)) {
+      if (food.length < foodCap) food.push(c);
+    } else {
+      if (experience.length < experienceCap) experience.push(c);
+    }
+    if (food.length + experience.length >= maxCount) break;
+  }
+
+  // If one bucket is underfilled, allow overflow from the other
+  const result = [...food, ...experience];
+  if (result.length < maxCount) {
+    const usedIds = new Set(result.map(r => r.id));
+    for (const c of sorted) {
+      if (result.length >= maxCount) break;
+      if (!usedIds.has(c.id)) {
+        result.push(c);
+        usedIds.add(c.id);
+      }
+    }
+  }
+
+  return result;
 }

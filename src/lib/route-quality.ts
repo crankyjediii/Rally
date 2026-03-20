@@ -60,10 +60,10 @@ export function computeRouteQuality(
 
 export function getQualityColor(label: RouteQualityResult['label']): string {
   switch (label) {
-    case 'Elite Route':  return 'text-rally-400';
-    case 'Strong Night': return 'text-emerald-400';
-    case 'Solid Plan':   return 'text-blue-400';
-    case 'Getting There': return 'text-yellow-400';
+    case 'Elite Route':  return 'quality-elite';
+    case 'Strong Night': return 'quality-strong';
+    case 'Solid Plan':   return 'quality-solid';
+    case 'Getting There': return 'quality-getting';
     default:             return 'text-text-muted';
   }
 }
@@ -74,7 +74,7 @@ export function getQualityBarColor(label: RouteQualityResult['label']): string {
     case 'Strong Night': return 'from-emerald-500 to-teal-400';
     case 'Solid Plan':   return 'from-blue-500 to-cyan-400';
     case 'Getting There': return 'from-yellow-500 to-amber-400';
-    default:             return 'from-white/20 to-white/10';
+    default:             return 'from-surface-elevated to-surface-elevated';
   }
 }
 

@@ -69,7 +69,7 @@ const PRICING = [
     period: '',
     desc: 'For chains and venue groups.',
     features: ['Unlimited listings', 'Custom analytics', 'API access', 'Dedicated manager', 'Custom campaigns', 'White-label routes'],
-    gradient: 'from-emerald-500/20 to-cyan-500/20',
+    gradient: 'from-rally-sage/30 to-rally-powder/30',
     featured: false,
   },
 ];
@@ -99,16 +99,16 @@ export default function BusinessPage() {
   return (
     <main className="min-h-dvh">
       <Navbar />
-      <div className="bg-orb w-[500px] h-[500px] bg-emerald-500 -top-40 -left-40 fixed" />
-      <div className="bg-orb w-[300px] h-[300px] bg-cyan-500 bottom-20 right-10 fixed" />
+      <div className="bg-orb w-[500px] h-[500px] bg-rally-sage -top-40 -left-40 fixed" />
+      <div className="bg-orb w-[300px] h-[300px] bg-rally-powder bottom-20 right-10 fixed" />
 
       <div className="max-w-5xl mx-auto px-5 py-4 sm:py-8">
         {/* Hero */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="text-center mb-10 sm:mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 sm:mb-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-4 sm:mb-6 rounded-full bg-rally-sage/20 border border-rally-sage/30 text-status-success text-sm font-medium">
+            <span className="w-2 h-2 rounded-full bg-rally-sage animate-pulse" />
             For Local Businesses
           </div>
           <h1 className="text-3xl sm:text-4xl md:text-6xl font-black mb-3 sm:mb-4">
@@ -182,7 +182,7 @@ export default function BusinessPage() {
                 className={`glass-card p-5 sm:p-6 bg-gradient-to-br ${plan.gradient} min-w-[280px] sm:min-w-0 snap-start shrink-0 sm:shrink ${plan.featured ? 'ring-1 ring-rally-500/40 sm:scale-105' : ''}`}
               >
                 {plan.featured && (
-                  <div className="text-[10px] sm:text-xs font-bold text-rally-400 mb-2 sm:mb-3">MOST POPULAR</div>
+                  <div className="text-[10px] sm:text-xs font-bold text-rally-adaptive mb-2 sm:mb-3">MOST POPULAR</div>
                 )}
                 <h3 className="text-lg sm:text-xl font-bold mb-1">{plan.name}</h3>
                 <div className="mb-2">
@@ -193,7 +193,7 @@ export default function BusinessPage() {
                 <ul className="space-y-1.5 sm:space-y-2 mb-5 sm:mb-6">
                   {plan.features.map(f => (
                     <li key={f} className="text-xs sm:text-sm flex items-center gap-2">
-                      <span className="text-emerald-400">✓</span> {f}
+                      <span className="text-status-success">✓</span> {f}
                     </li>
                   ))}
                 </ul>
@@ -228,7 +228,7 @@ export default function BusinessPage() {
 
         {/* CTA */}
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="glass-card p-6 sm:p-10 text-center bg-gradient-to-br from-emerald-500/10 to-cyan-500/10"
+          className="glass-card p-6 sm:p-10 text-center bg-gradient-to-br from-rally-sage/30 to-rally-powder/30"
         >
           <h2 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3">Ready to grow with Rally?</h2>
           <p className="text-sm text-text-secondary mb-5 sm:mb-6">Join 500+ venues already getting discovered through Rally routes.</p>

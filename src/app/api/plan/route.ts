@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
 import { fetchOverpassPlaces } from '@/lib/overpass';
-import { prepareCandidates } from '@/lib/candidate-scorer';
+import { prepareCandidates, diversifyCandidates, isFoodCategory } from '@/lib/candidate-scorer';
 import { generateRoute } from '@/lib/route-engine';
 import {
-  Place, UserPreferences, GeneratedRoute, RouteStop, Vibe,
+  Place, UserPreferences, GeneratedRoute, RouteStop, Vibe, ScoredPlace,
 } from '@/lib/types';
 import { generateId, getDistanceBetween, formatDistance, estimateWalkTime } from '@/lib/utils';
 import { ROUTE_TITLES, VIBE_DESCRIPTIONS } from '@/lib/constants';
@@ -83,6 +83,61 @@ You receive a list of real nearby places fetched from OpenStreetMap.
 You MUST return ONLY valid JSON matching the schema. No markdown. No prose outside JSON.`;
 }
 
+// ── Variety Validation ───────────────────────────────────────────────
+
+function validateVariety(
+  stopIds: string[],
+  candidateMap: Map<string, Place>,
+  vibe: Vibe,
+): { valid: boolean; reason?: string } {
+  if (vibe === 'foodie') return { valid: true };
+
+  const categories = stopIds
+    .map(id => candidateMap.get(id)?.category)
+    .filter(Boolean) as string[];
+
+  const foodCount = categories.filter(c => isFoodCategory(c as Place['category'])).length;
+  const maxFood = Math.max(1, Math.floor(stopIds.length * 0.5));
+
+  if (foodCount > maxFood) {
+    return {
+      valid: false,
+      reason: `Too many food/drink stops (${foodCount}/${stopIds.length}). For a ${vibe} outing, include at most ${maxFood} food stop(s) and fill the rest with experiential stops like attractions, museums, parks, scenic spots, or activities.`,
+    };
+  }
+  return { valid: true };
+}
+
+// ── Per-Vibe Composition Hints ──────────────────────────────────────
+
+function getVibeCompositionHint(vibe: Vibe, foodRequired: boolean): string {
+  const foodNote = foodRequired ? ' You may include 1 restaurant/cafe since food is required.' : '';
+  switch (vibe) {
+    case 'foodie':
+      return 'This is a foodie outing — food-heavy composition is expected and encouraged.';
+    case 'date':
+      return `Prioritize romantic/experiential stops: scenic viewpoints, museums, parks, unique attractions. Limit food stops to 1 (a closer or midpoint refuel).${foodNote}`;
+    case 'artsy':
+      return `Lead with museums, galleries, bookstores, and scenic spots. Food should only appear as a support stop (1 max).${foodNote}`;
+    case 'outdoorsy':
+      return `Focus on parks, scenic spots, and outdoor activities. A cafe or dessert stop is fine as a break, but no restaurants as primary stops.${foodNote}`;
+    case 'tourist':
+      return `Prioritize attractions, museums, and scenic landmarks. Include at most 1 food stop as a break.${foodNote}`;
+    case 'chaotic':
+      return `Go wild with arcades, activities, nightlife, and attractions. Food/drink should complement the energy, not dominate.${foodNote}`;
+    case 'main-character':
+      return `Choose photogenic, iconic, and unique stops: scenic spots, attractions, parks. Limit food to 1 dessert or cafe stop.${foodNote}`;
+    case 'cheap':
+      return `Focus on free/low-cost experiences: parks, scenic spots, bookstores, museums. Minimize paid food stops.${foodNote}`;
+    case 'cozy':
+      return `A cozy outing should center around a great cafe or bookstore, with variety from museums or scenic walks. Max 1 restaurant.${foodNote}`;
+    case 'rainy-day':
+      return `Indoor experiences: museums, bookstores, arcades, activities. A cafe is great as a start/end, but keep food to 1 stop.${foodNote}`;
+    default:
+      return `Ensure variety — include experiential stops (attractions, museums, parks, scenic, activities) alongside at most 1 food stop.${foodNote}`;
+  }
+}
+
 function buildUserPrompt(
   stopCount: number,
   prefs: UserPreferences,
@@ -96,20 +151,25 @@ function buildUserPrompt(
   const locationStr = neighborhood ? `${neighborhood}, ${city}` : city;
   const foodLine = prefs.foodRequired ? '\nREQUIRED: Include at least one restaurant or cafe.' : '';
   const attractionLine = prefs.attractionRequired ? '\nREQUIRED: Include at least one attraction or museum.' : '';
+  const compositionHint = getVibeCompositionHint(prefs.vibe, prefs.foodRequired);
 
   return `Plan a ${stopCount}-stop ${prefs.vibe} outing for ${prefs.groupType} in ${locationStr}.
 Budget: ${prefs.budget}. Time available: ${prefs.timeAvailable}. Indoor/Outdoor: ${prefs.indoorOutdoor}.${foodLine}${attractionLine}
+
+ROUTE COMPOSITION GUIDE:
+${compositionHint}
 
 Planning rules:
 - Select ONLY IDs from the candidates list below — never invent places
 - No duplicate chain brands (e.g. two Starbucks)
 - No utility businesses (tailor, bank, dental, pharmacy, etc.)
-- Vary categories — avoid same category back-to-back unless it makes sense
+- IMPORTANT: Build a real outing, not a meal crawl. Think anchor experience + support stops + a closer
+- Vary categories — never put two restaurants/cafes/dessert stops back-to-back
 - Create a beginning / middle / end narrative arc
 - Prefer local and independent places over generic chains when alternatives exist
 - Respect the indoor/outdoor preference
 - Consider geographic flow — avoid unnecessary backtracking
-- Each stop should add something new to the experience
+- Each stop should add something NEW and DIFFERENT to the experience
 
 Available candidates:
 ${JSON.stringify(candidates, null, 0)}
@@ -256,6 +316,50 @@ async function callOpenRouter(
   return JSON.parse(content);
 }
 
+// ── Deterministic Variety Repair ─────────────────────────────────────
+// If AI output is still food-heavy, swap excess food stops for
+// the best available experience candidates.
+
+function repairFoodHeavyRoute(
+  route: GeneratedRoute,
+  scored: ScoredPlace[],
+  candidateMap: Map<string, Place>,
+): GeneratedRoute {
+  const usedIds = new Set(route.stops.map(s => s.place.id));
+  const foodStopIndices = route.stops
+    .map((s, i) => ({ index: i, category: s.place.category, score: (candidateMap.get(s.place.id) as ScoredPlace)?.vibeFitScore ?? 0 }))
+    .filter(s => isFoodCategory(s.category as Place['category']))
+    .sort((a, b) => a.score - b.score); // worst food stops first
+
+  // Keep at most 1 food stop
+  const maxFood = 1;
+  const toReplace = foodStopIndices.slice(0, Math.max(0, foodStopIndices.length - maxFood));
+
+  // Find replacement experience candidates
+  const experienceCandidates = scored
+    .filter(p => !isFoodCategory(p.category) && !usedIds.has(p.id) && p.outingSuitabilityScore > 0)
+    .sort((a, b) => b.vibeFitScore - a.vibeFitScore);
+
+  const newStops = [...route.stops];
+  let replacementIdx = 0;
+
+  for (const { index } of toReplace) {
+    if (replacementIdx >= experienceCandidates.length) break;
+    const replacement = experienceCandidates[replacementIdx++];
+    const oldStop = newStops[index];
+    newStops[index] = {
+      ...oldStop,
+      place: replacement,
+      reason: oldStop.aiReason || oldStop.reason,
+      aiReason: `Swapped in for better route variety — ${replacement.name} adds a unique experience.`,
+    };
+    usedIds.add(replacement.id);
+  }
+
+  const totalCost = newStops.reduce((sum, s) => sum + s.place.estimatedCost, 0);
+  return { ...route, stops: newStops, totalCost };
+}
+
 // ── Main POST Handler ────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -287,20 +391,18 @@ export async function POST(request: NextRequest) {
     if (apiKey && scored.length >= 3) {
       const stopCount = getStopCount(preferences.timeAvailable);
 
-      // Take top candidates by vibeFitScore (max 40 to keep prompt lean)
-      const topCandidates = [...scored]
-        .sort((a, b) => b.vibeFitScore - a.vibeFitScore)
-        .slice(0, 40)
-        .map(p => ({
-          id: p.id,
-          name: p.name,
-          category: p.category,
-          estimatedCost: p.estimatedCost,
-          estimatedMinutes: p.estimatedMinutes,
-          indoor: p.indoor,
-          vibeFitScore: p.vibeFitScore,
-          tags: p.tags.slice(0, 3),
-        }));
+      // Take top candidates with balanced category diversity
+      const diversified = diversifyCandidates(scored, 40, vibe);
+      const topCandidates = diversified.map(p => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        estimatedCost: p.estimatedCost,
+        estimatedMinutes: p.estimatedMinutes,
+        indoor: p.indoor,
+        vibeFitScore: p.vibeFitScore,
+        tags: p.tags.slice(0, 3),
+      }));
 
       const validIds = new Set(topCandidates.map(c => c.id));
       const candidateMap = new Map<string, Place>(
@@ -313,27 +415,46 @@ export async function POST(request: NextRequest) {
       // Attempt 1
       let aiResult: unknown;
       let validation: { valid: boolean; reason?: string } = { valid: false };
+      let varietyCheck: { valid: boolean; reason?: string } = { valid: false };
 
       try {
         aiResult = await callOpenRouter(systemPrompt, userPrompt);
         validation = validateAIResponse(aiResult, validIds, stopCount);
+        if (validation.valid) {
+          varietyCheck = validateVariety(
+            (aiResult as AIItineraryResponse).selected_stop_ids,
+            candidateMap,
+            vibe,
+          );
+        }
       } catch (err) {
         console.error('[plan] AI attempt 1 failed:', err);
       }
 
-      // Attempt 2 (retry with failure reason)
-      if (!validation.valid && aiResult !== undefined) {
+      // Attempt 2 (retry with failure reason — structural or variety)
+      const needsRetry = !validation.valid || !varietyCheck.valid;
+      if (needsRetry) {
+        const retryReason = !validation.valid
+          ? validation.reason
+          : varietyCheck.reason;
         try {
-          const retryPrompt = `${userPrompt}\n\nYour previous response was invalid: ${validation.reason}. Please fix it and try again.`;
+          const retryPrompt = `${userPrompt}\n\nYour previous response was invalid: ${retryReason}. Please fix it and try again.`;
           aiResult = await callOpenRouter(systemPrompt, retryPrompt);
           validation = validateAIResponse(aiResult, validIds, stopCount);
+          if (validation.valid) {
+            varietyCheck = validateVariety(
+              (aiResult as AIItineraryResponse).selected_stop_ids,
+              candidateMap,
+              vibe,
+            );
+          }
         } catch (err) {
           console.error('[plan] AI attempt 2 failed:', err);
         }
       }
 
       if (validation.valid && aiResult) {
-        const route = mapAIResponseToRoute(
+        let route = mapAIResponseToRoute(
           aiResult as AIItineraryResponse,
           candidateMap,
           preferences,
@@ -341,6 +462,12 @@ export async function POST(request: NextRequest) {
           neighborhood,
           false,
         );
+
+        // If variety still fails after retry, repair deterministically
+        if (!varietyCheck.valid && vibe !== 'foodie') {
+          route = repairFoodHeavyRoute(route, scored, candidateMap);
+        }
+
         return Response.json(route);
       }
 

@@ -107,7 +107,7 @@ export default function StopCard({
           role="button"
           tabIndex={isLocked ? -1 : 0}
         >
-          <svg width="14" height="20" viewBox="0 0 14 20" fill="none" className="text-white/30">
+          <svg width="14" height="20" viewBox="0 0 14 20" fill="none" className="text-text-muted">
             <circle cx="4" cy="4" r="1.5" fill="currentColor"/>
             <circle cx="4" cy="10" r="1.5" fill="currentColor"/>
             <circle cx="4" cy="16" r="1.5" fill="currentColor"/>
@@ -118,7 +118,7 @@ export default function StopCard({
         </div>
 
         {/* Category emoji */}
-        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-rally-500/20 to-rally-pink/20 flex items-center justify-center text-lg shrink-0 mt-0.5">
+        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-rally-lavender/40 to-rally-blush/40 flex items-center justify-center text-lg shrink-0 mt-0.5">
           {categoryEmoji(stop.place.category)}
         </div>
 
@@ -127,7 +127,7 @@ export default function StopCard({
           {/* Header row */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <span className="text-[10px] sm:text-xs text-rally-400 font-semibold">STOP {index + 1}</span>
+              <span className="text-[10px] sm:text-xs text-rally-adaptive font-semibold">STOP {index + 1}</span>
               <h3 className="text-base sm:text-[17px] font-bold leading-tight">
                 <motion.span
                   animate={{
@@ -147,16 +147,16 @@ export default function StopCard({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-              <span className="text-xs sm:text-sm font-semibold text-rally-400">
+              <span className="text-xs sm:text-sm font-semibold text-rally-adaptive">
                 {formatCurrency(stop.place.estimatedCost)}
               </span>
 
-              {/* Lock / Unlock button — animated icon swap */}
+              {/* Lock / Unlock button */}
               <motion.button
                 onClick={e => { e.stopPropagation(); onToggleLock(); }}
                 whileTap={{ scale: 0.85 }}
                 transition={EASE_SPRING_SNAPPY}
-                className="p-1 rounded-lg hover:bg-white/10 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                className="p-1 rounded-lg hover:bg-surface-elevated transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
                 aria-label={isLocked ? 'Unlock stop' : 'Lock stop'}
                 title={isLocked ? 'Unlock this stop' : 'Lock this stop so edits skip it'}
               >
@@ -167,7 +167,7 @@ export default function StopCard({
                     animate={{ scale: 1, rotate: 0, opacity: 1 }}
                     exit={{ scale: 0.5, rotate: 20, opacity: 0 }}
                     transition={EASE_SPRING_SNAPPY}
-                    className={`text-sm ${isLocked ? 'text-amber-400' : 'text-white/25'}`}
+                    className={`text-sm ${isLocked ? 'text-status-warning' : 'text-text-muted/40'}`}
                   >
                     {isLocked ? '🔒' : '🔓'}
                   </motion.span>
@@ -181,7 +181,7 @@ export default function StopCard({
             {stop.reason}
           </p>
           {stop.aiReason && stop.aiReason !== stop.reason && (
-            <p className="text-xs text-rally-300/65 mt-1 italic leading-relaxed">
+            <p className="text-xs text-rally-adaptive/65 mt-1 italic leading-relaxed">
               ✦ {stop.aiReason}
             </p>
           )}
@@ -190,7 +190,7 @@ export default function StopCard({
           {stop.place.tags && stop.place.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {stop.place.tags.slice(0, 3).map(tag => (
-                <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-text-muted">
+                <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-surface-elevated text-text-muted">
                   {tag}
                 </span>
               ))}
@@ -206,7 +206,7 @@ export default function StopCard({
               </>
             )}
             <span>⏱️ ~{stop.place.estimatedMinutes} min</span>
-            {isLocked && <span className="text-amber-400/70 font-medium">locked</span>}
+            {isLocked && <span className="text-status-warning font-medium">locked</span>}
           </div>
 
           {/* Action chips — horizontally scrollable on mobile */}
@@ -218,8 +218,8 @@ export default function StopCard({
               transition={EASE_SPRING_SNAPPY}
               className={`text-xs px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap min-h-[34px] shrink-0 ${
                 stop.completed
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-white/5 text-text-secondary active:bg-white/10'
+                  ? 'bg-rally-sage/25 text-status-success border border-rally-sage/40'
+                  : 'bg-surface-elevated text-text-secondary active:bg-surface-card'
               }`}
             >
               {stop.completed ? '✓ Done' : 'Mark done'}
@@ -232,7 +232,7 @@ export default function StopCard({
                 disabled={isEditing}
                 whileTap={!isEditing ? { scale: 0.88 } : {}}
                 transition={EASE_SPRING_SNAPPY}
-                className="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-text-secondary active:bg-white/10 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
+                className="text-xs px-3 py-1.5 rounded-lg bg-surface-elevated text-text-secondary active:bg-surface-card transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
               >
                 🎲 Swap
               </motion.button>
@@ -245,7 +245,7 @@ export default function StopCard({
                 disabled={isEditing}
                 whileTap={!isEditing ? { scale: 0.88 } : {}}
                 transition={EASE_SPRING_SNAPPY}
-                className="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-text-secondary active:bg-white/10 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
+                className="text-xs px-3 py-1.5 rounded-lg bg-surface-elevated text-text-secondary active:bg-surface-card transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
               >
                 ✦ Alternatives
               </motion.button>
@@ -257,7 +257,7 @@ export default function StopCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-text-secondary active:bg-white/10 transition-colors whitespace-nowrap min-h-[34px] shrink-0 inline-flex items-center"
+              className="text-xs px-3 py-1.5 rounded-lg bg-surface-elevated text-text-secondary active:bg-surface-card transition-colors whitespace-nowrap min-h-[34px] shrink-0 inline-flex items-center"
             >
               🧭 Directions
             </a>
@@ -269,7 +269,7 @@ export default function StopCard({
                 disabled={isEditing}
                 whileTap={!isEditing ? { scale: 0.85 } : {}}
                 transition={EASE_SPRING_SNAPPY}
-                className="text-xs px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400/70 hover:bg-red-500/20 hover:text-red-400 active:bg-red-500/25 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
+                className="text-xs px-2.5 py-1.5 rounded-lg bg-red-500/10 text-status-error hover:bg-red-500/20 active:bg-red-500/25 transition-colors whitespace-nowrap min-h-[34px] shrink-0 disabled:opacity-40"
                 aria-label="Delete stop"
                 title="Remove this stop"
               >
@@ -280,7 +280,7 @@ export default function StopCard({
         </div>
       </div>
 
-      {/* Editing overlay — breathing animation */}
+      {/* Editing overlay */}
       <AnimatePresence>
         {isEditing && (
           <motion.div

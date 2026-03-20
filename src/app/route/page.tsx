@@ -144,7 +144,7 @@ function FinishScreen({
                     onClick={() => onRate(i, star)}
                     whileTap={{ scale: 0.8 }}
                     transition={EASE_SPRING_SNAPPY}
-                    className={`text-lg p-0.5 transition-colors ${(stop.rating || 0) >= star ? 'text-yellow-400' : 'text-white/20'}`}
+                    className={`text-lg p-0.5 transition-colors ${(stop.rating || 0) >= star ? 'text-status-warning' : 'text-text-muted'}`}
                   >
                     ★
                   </motion.button>
@@ -161,18 +161,18 @@ function FinishScreen({
           transition={{ delay: 0.9 }}
           className="glass-card p-5 mb-6 bg-linear-to-br from-rally-600/20 to-rally-pink/20 border-rally-600/20"
         >
-          <div className="text-sm text-rally-400 font-semibold mb-1">RALLY ROUTE</div>
+          <div className="text-sm text-rally-adaptive font-semibold mb-1">RALLY ROUTE</div>
           <h3 className="text-lg font-bold mb-1">{route.title}</h3>
           <p className="text-xs text-text-secondary mb-3">{route.city} · {route.stops.length} stops · {route.vibe}</p>
           <div className="space-y-1.5">
             {route.stops.map((stop, i) => (
               <div key={i} className="flex items-center gap-2 text-sm">
-                <span className="w-5 h-5 rounded-full bg-rally-500/30 flex items-center justify-center text-xs font-bold text-rally-300">{i + 1}</span>
+                <span className="w-5 h-5 rounded-full bg-rally-500/30 flex items-center justify-center text-xs font-bold text-rally-adaptive">{i + 1}</span>
                 <span className="text-text-secondary truncate">{stop.place.name}</span>
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-text-muted">
+          <div className="mt-4 pt-4 border-t border-border-default flex items-center justify-between text-xs text-text-muted">
             <span>rally.app</span>
             <span>Built by Rally ✨</span>
           </div>
@@ -220,6 +220,7 @@ export default function RoutePage() {
   const {
     route, lockedStopIds, activeStopIndex, isEditing, editingIntent, editReason,
     canUndo, canRedo, alternativesForIndex, quality, allRevealed, revealed,
+    recoveredFromCloud, saveConfirmation,
     handleComplete, handleRate, handleReorder, handleDeleteStop, handleToggleLock,
     handleSetActiveStop, handleShowAlternatives, handleSelectAlternative,
     handleRerollAI, handleWildcard, handleMakeCheaper, handleMakeMoreFun,
@@ -330,7 +331,7 @@ export default function RoutePage() {
   return (
     <main className="min-h-dvh relative">
       <Navbar />
-      <div className="bg-orb w-[400px] h-[400px] bg-rally-600 top-10 -right-20 fixed" />
+      <div className="bg-orb w-[400px] h-[400px] bg-rally-blush top-10 -right-20 fixed" />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-5 py-4 sm:py-6">
 
@@ -348,7 +349,7 @@ export default function RoutePage() {
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <h1 className="text-xl sm:text-2xl md:text-3xl font-bold leading-tight">{route.title}</h1>
                 {route.aiGenerated && (
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rally-500/20 text-rally-300 border border-rally-500/20 shrink-0">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rally-500/20 text-rally-adaptive border border-rally-500/20 shrink-0">
                     ✦ AI Planned
                   </span>
                 )}
@@ -430,7 +431,7 @@ export default function RoutePage() {
               transition={{ type: 'spring', stiffness: 280, damping: 28 }}
               className="overflow-hidden mb-4"
             >
-              <div className="flex items-center gap-2.5 glass-card px-4 py-3 text-sm text-text-secondary border-rally-500/15">
+              <div className="flex items-center gap-2.5 glass-card px-4 py-3 text-sm text-text-secondary border-rally-500/20">
                 <div className="w-4 h-4 border border-rally-500/50 border-t-rally-500 rounded-full animate-spin shrink-0" />
                 <span>{loadingMessage}</span>
               </div>
@@ -438,8 +439,36 @@ export default function RoutePage() {
           )}
         </AnimatePresence>
 
-        {/* Edit reason banner */}
+        {/* Recovery / save confirmation / edit reason banners */}
         <AnimatePresence>
+          {recoveredFromCloud && (
+            <motion.div
+              key="recovered"
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+              className="overflow-hidden mb-3"
+            >
+              <div className="glass-card px-4 py-2.5 border-rally-sage/30 bg-rally-sage/20">
+                <p className="text-xs text-status-success">Route recovered from your account ✓</p>
+              </div>
+            </motion.div>
+          )}
+          {saveConfirmation && (
+            <motion.div
+              key="save-confirm"
+              initial={{ opacity: 0, y: -8, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+              className="overflow-hidden mb-3"
+            >
+              <div className="glass-card px-4 py-2.5 border-rally-500/20 bg-rally-lavender/15">
+                <p className="text-xs text-rally-adaptive">{saveConfirmation}</p>
+              </div>
+            </motion.div>
+          )}
           {editReason && (
             <motion.div
               key="edit-reason"
@@ -449,13 +478,13 @@ export default function RoutePage() {
               transition={{ type: 'spring', stiffness: 280, damping: 28 }}
               className="overflow-hidden mb-4"
             >
-              <div className="flex items-start justify-between gap-3 glass-card px-4 py-3 border-rally-500/15 bg-rally-500/5">
+              <div className="flex items-start justify-between gap-3 glass-card px-4 py-3 border-rally-500/20 bg-rally-lavender/15">
                 <p className="text-xs sm:text-sm text-text-secondary flex-1">
-                  <span className="text-rally-400 font-medium">✦ </span>{editReason}
+                  <span className="text-rally-adaptive font-medium">✦ </span>{editReason}
                 </p>
                 <button
                   onClick={clearEditReason}
-                  className="text-white/30 hover:text-white/60 transition-colors text-xs shrink-0 mt-0.5"
+                  className="text-text-muted hover:text-text-secondary transition-colors text-xs shrink-0 mt-0.5"
                   aria-label="Dismiss"
                 >✕</button>
               </div>
@@ -469,7 +498,7 @@ export default function RoutePage() {
             <span className="text-xs font-medium">Progress</span>
             <span className="text-xs text-text-secondary">{completedCount}/{route.stops.length} done</span>
           </div>
-          <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-surface-elevated rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-linear-to-r from-rally-500 to-rally-pink rounded-full"
               animate={{ width: `${progressPct}%` }}
@@ -490,7 +519,7 @@ export default function RoutePage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
-                className="text-xs text-emerald-400 text-center mt-2 font-medium"
+                className="text-xs text-status-success text-center mt-2 font-medium"
               >
                 ✨ All stops complete!
               </motion.p>
@@ -603,7 +632,7 @@ export default function RoutePage() {
                   disabled={!canUndo}
                   whileTap={canUndo ? { scale: 0.93 } : {}}
                   transition={EASE_SPRING_SNAPPY}
-                  className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-white/5 text-text-secondary disabled:opacity-30 active:bg-white/10 transition-colors min-h-[36px]"
+                  className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-surface-elevated text-text-secondary disabled:opacity-30 active:bg-surface-elevated/80 transition-colors min-h-[36px]"
                 >
                   ↩ Undo
                 </motion.button>
@@ -612,7 +641,7 @@ export default function RoutePage() {
                   disabled={!canRedo}
                   whileTap={canRedo ? { scale: 0.93 } : {}}
                   transition={EASE_SPRING_SNAPPY}
-                  className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-white/5 text-text-secondary disabled:opacity-30 active:bg-white/10 transition-colors min-h-[36px]"
+                  className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg bg-surface-elevated text-text-secondary disabled:opacity-30 active:bg-surface-elevated/80 transition-colors min-h-[36px]"
                 >
                   ↪ Redo
                 </motion.button>

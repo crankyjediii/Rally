@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 
 /** Returns the current authenticated user's Convex document, or null. */
@@ -63,6 +63,20 @@ export const createOrUpdateUser = mutation({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Internal query — looks up a user by Clerk ID without requiring user auth.
+ * Used by server-side API routes (checkout, portal) via the Convex deploy key.
+ */
+export const getByClerkId = internalQuery({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
   },
 });
 

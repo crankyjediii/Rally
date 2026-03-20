@@ -5,11 +5,11 @@ import { ConvexClientProvider } from '@/components/providers/ConvexClientProvide
 import { DataMigrationProvider } from '@/components/providers/DataMigrationProvider';
 
 export const metadata: Metadata = {
-  title: 'Rally — Turn Your Location Into an Adventure',
-  description: 'Rally generates real-world mini-adventures based on your location, vibe, and budget. Pick a mood, get a route, live the story.',
-  keywords: ['outing generator', 'date planner', 'things to do near me', 'adventure planner', 'route builder'],
+  title: 'Rally — Fun Nights, Less Overthinking',
+  description: 'Rally helps you turn "I don\'t know what to do" into a plan that actually sounds fun. Date nights, friend hangouts, spontaneous outings.',
+  keywords: ['outing generator', 'date planner', 'things to do near me', 'adventure planner', 'route builder', 'hangout ideas'],
   openGraph: {
-    title: 'Rally — Your Instant Outing Generator',
+    title: 'Rally — Fun Nights, Less Overthinking',
     description: 'Pick a vibe. Get a route. Live the story.',
     type: 'website',
   },
@@ -21,14 +21,23 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#0a0a0f',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#FCFBF8' },
+    { media: '(prefers-color-scheme: dark)', color: '#1F2126' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="en" className="dark">
+      <html lang="en" suppressHydrationWarning>
         <head>
+          {/* Flash-free theme sync — runs before first paint */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){try{var t=localStorage.getItem('rally-theme');var d=window.matchMedia('(prefers-color-scheme:dark)').matches;if(t==='dark'||(!t&&d))document.documentElement.classList.add('dark')}catch(e){}})()`,
+            }}
+          />
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link

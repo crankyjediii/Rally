@@ -79,6 +79,7 @@ export default function BuildPage() {
   const router = useRouter();
   const { isSignedIn } = useUser();
   const updatePrefsMutation = useMutation(api.preferences.updatePreferences);
+  const createOrUpdatePlannedRoute = useMutation(api.plannedRoutes.createOrUpdate);
   const { location, loading: geoLoading, requestLocation, useDemo, isStale } = useGeolocation();
   const [step, setStep] = useState(0);
   const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFERENCES);
@@ -229,10 +230,23 @@ export default function BuildPage() {
     }
 
     setCurrentRoute(route);
+
+    // Auto-save generated route for signed-in users
+    if (isSignedIn && route) {
+      createOrUpdatePlannedRoute({
+        routeId: route.id,
+        title: route.title,
+        vibe: route.vibe,
+        city: route.city ?? loc.city,
+        routeData: route,
+        isActive: true,
+      }).catch(console.error);
+    }
+
     setGeneratingStage(null);
     setGenerating(false);
     router.push('/route');
-  }, [prefs, location, places, placesFetchStatus, router, isSignedIn, updatePrefsMutation, fetchPlaces]);
+  }, [prefs, location, places, placesFetchStatus, router, isSignedIn, updatePrefsMutation, fetchPlaces, createOrUpdatePlannedRoute]);
 
   useEffect(() => {
     if (step === 2 && !fetchedPlaces && location) {
@@ -244,16 +258,16 @@ export default function BuildPage() {
 
   const locationModeLabel = location
     ? location.isDemo
-      ? { icon: '🎭', text: 'Demo mode — showing sample NYC data', color: 'text-amber-400' }
+      ? { icon: '🎭', text: 'Demo mode — showing sample NYC data', color: 'text-status-warning' }
       : isStale
       ? { icon: '📍', text: 'Using your last known location — tap Allow to refresh', color: 'text-text-muted' }
-      : { icon: '✅', text: 'Live location confirmed', color: 'text-emerald-400' }
+      : { icon: '✅', text: 'Live location confirmed', color: 'text-status-success' }
     : null;
 
   return (
     <main className="min-h-dvh relative flex flex-col">
       <Navbar />
-      <div className="bg-orb w-[400px] h-[400px] bg-rally-600 -top-20 -right-20 fixed" />
+      <div className="bg-orb w-[400px] h-[400px] bg-rally-lavender -top-20 -right-20 fixed" />
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-5 pt-4 sm:pt-8 pb-4">
 
@@ -261,7 +275,7 @@ export default function BuildPage() {
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
             {STEPS.map((s, i) => (
-              <div key={s} className="flex-1 relative h-1 rounded-full bg-white/10 overflow-hidden">
+              <div key={s} className="flex-1 relative h-1 rounded-full bg-surface-elevated overflow-hidden">
                 <motion.div
                   className="absolute inset-y-0 left-0 rounded-full bg-rally-500 origin-left"
                   initial={{ scaleX: 0 }}
@@ -348,7 +362,7 @@ export default function BuildPage() {
                   <span className="font-medium text-sm sm:text-base">🍕 Must include food</span>
                   <motion.div
                     className="w-12 h-7 rounded-full flex items-center p-1 shrink-0"
-                    animate={{ backgroundColor: prefs.foodRequired ? '#a855f7' : 'rgba(255,255,255,0.1)' }}
+                    animate={{ backgroundColor: prefs.foodRequired ? '#a855f7' : 'rgba(44,42,46,0.1)' }}
                     transition={{ duration: 0.2 }}
                   >
                     <motion.div layout className={`w-5 h-5 rounded-full bg-white shadow-sm ${prefs.foodRequired ? 'ml-auto' : ''}`} />
@@ -363,7 +377,7 @@ export default function BuildPage() {
                   <span className="font-medium text-sm sm:text-base">🎡 Must include attraction</span>
                   <motion.div
                     className="w-12 h-7 rounded-full flex items-center p-1 shrink-0"
-                    animate={{ backgroundColor: prefs.attractionRequired ? '#a855f7' : 'rgba(255,255,255,0.1)' }}
+                    animate={{ backgroundColor: prefs.attractionRequired ? '#a855f7' : 'rgba(44,42,46,0.1)' }}
                     transition={{ duration: 0.2 }}
                   >
                     <motion.div layout className={`w-5 h-5 rounded-full bg-white shadow-sm ${prefs.attractionRequired ? 'ml-auto' : ''}`} />
@@ -420,23 +434,23 @@ export default function BuildPage() {
 
                   {placesFetchStatus === 'sparse' && (
                     <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                      <p className="text-xs text-amber-400">Limited spots found nearby — expanding search with demo data for this route.</p>
+                      <p className="text-xs text-status-warning">Limited spots found nearby — expanding search with demo data for this route.</p>
                     </div>
                   )}
                   {placesFetchStatus === 'error' && (
                     <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-                      <p className="text-xs text-red-400">Couldn&apos;t fetch nearby spots. Check your connection and try again.</p>
+                      <p className="text-xs text-status-error">Couldn&apos;t fetch nearby spots. Check your connection and try again.</p>
                     </div>
                   )}
                   {placesFetchStatus === 'success' && !location.isDemo && (
-                    <p className="text-xs text-emerald-400/70 mt-2">
+                    <p className="text-xs text-status-success mt-2 opacity-70">
                       {places.length} spots found nearby
                     </p>
                   )}
 
                   {isStale && (
                     <button onClick={handleLocationRequest} disabled={geoLoading}
-                      className="mt-4 text-xs text-rally-400 underline underline-offset-2"
+                      className="mt-4 text-xs text-rally-adaptive underline underline-offset-2"
                     >
                       {geoLoading ? 'Refreshing...' : 'Refresh my location'}
                     </button>
@@ -454,7 +468,7 @@ export default function BuildPage() {
                   >
                     {geoLoading ? (
                       <span className="flex items-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span className="w-4 h-4 border-2 border-border-default border-t-white rounded-full animate-spin" />
                         Getting your precise location...
                       </span>
                     ) : (
@@ -529,17 +543,17 @@ export default function BuildPage() {
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
                                 transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                                className="text-emerald-400"
+                                className="text-status-success"
                               >
                                 ✓
                               </motion.span>
                             ) : isCurrent ? (
-                              <span className="w-4 h-4 border-2 border-rally-400/30 border-t-rally-400 rounded-full animate-spin block" />
+                              <span className="w-4 h-4 border-2 border-rally-adaptive/30 border-t-rally-adaptive rounded-full animate-spin block" />
                             ) : (
-                              <span className="w-2 h-2 rounded-full bg-white/20 block mx-auto" />
+                              <span className="w-2 h-2 rounded-full bg-surface-elevated block mx-auto" />
                             )}
                           </span>
-                          <span className={`text-sm ${isDone ? 'text-emerald-400' : isCurrent ? 'text-white font-medium' : 'text-text-muted'}`}>
+                          <span className={`text-sm ${isDone ? 'text-status-success' : isCurrent ? 'text-text-primary font-medium' : 'text-text-muted'}`}>
                             {STAGE_LABELS[stage]}
                           </span>
                         </motion.div>
@@ -579,7 +593,7 @@ export default function BuildPage() {
 
                   {!location && (
                     <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 max-w-sm mx-auto">
-                      <p className="text-xs text-amber-400">Set your location first — go back to step 3.</p>
+                      <p className="text-xs text-status-warning">Set your location first — go back to step 3.</p>
                     </div>
                   )}
 
@@ -593,7 +607,7 @@ export default function BuildPage() {
                         <span className="text-text-muted">Location</span>
                         <span className="flex items-center gap-1">
                           {location?.city || '—'}
-                          {location?.isDemo && <span className="text-[10px] text-amber-400 ml-1">demo</span>}
+                          {location?.isDemo && <span className="text-[10px] text-status-warning ml-1">demo</span>}
                           {location && !location.isDemo && isStale && <span className="text-[10px] text-text-muted ml-1">cached</span>}
                         </span>
                       </div>

@@ -8,15 +8,15 @@ import { generateId, pickRandom, getDistanceBetween, formatDistance, estimateWal
 
 const VIBE_CATEGORIES: Record<Vibe, PlaceCategory[][]> = {
   cozy: [['cafe'], ['bookstore', 'museum'], ['restaurant', 'dessert']],
-  date: [['cafe', 'scenic'], ['museum', 'park', 'attraction'], ['restaurant'], ['dessert', 'scenic']],
-  chaotic: [['restaurant', 'cafe'], ['arcade', 'activity'], ['dessert', 'shopping'], ['scenic', 'attraction']],
+  date: [['scenic', 'cafe'], ['museum', 'attraction', 'park'], ['activity', 'scenic'], ['restaurant', 'dessert']],
+  chaotic: [['activity', 'arcade'], ['attraction', 'scenic'], ['dessert', 'shopping'], ['bar', 'nightlife']],
   foodie: [['cafe'], ['restaurant'], ['dessert'], ['restaurant', 'cafe']],
   artsy: [['cafe'], ['museum', 'bookstore'], ['scenic', 'shopping'], ['dessert']],
-  outdoorsy: [['park', 'scenic'], ['cafe'], ['park', 'scenic'], ['restaurant']],
-  cheap: [['cafe', 'park'], ['bookstore', 'park', 'scenic'], ['restaurant'], ['dessert']],
-  'main-character': [['scenic'], ['cafe'], ['dessert', 'shopping'], ['scenic', 'park']],
-  tourist: [['attraction'], ['cafe', 'restaurant'], ['museum', 'scenic'], ['dessert', 'shopping']],
-  'rainy-day': [['cafe'], ['museum', 'bookstore', 'arcade'], ['restaurant'], ['dessert', 'activity']],
+  outdoorsy: [['park', 'scenic'], ['activity', 'cafe'], ['scenic', 'park'], ['cafe', 'dessert']],
+  cheap: [['park', 'scenic'], ['bookstore', 'museum'], ['activity', 'scenic'], ['cafe', 'dessert']],
+  'main-character': [['scenic', 'cafe'], ['attraction', 'park'], ['dessert', 'shopping'], ['scenic']],
+  tourist: [['attraction'], ['museum', 'scenic'], ['cafe', 'activity'], ['dessert', 'shopping']],
+  'rainy-day': [['cafe', 'bookstore'], ['museum', 'arcade'], ['activity', 'bookstore'], ['restaurant', 'dessert']],
 };
 
 // ── Budget Limits ────────────────────────────────────────────────────

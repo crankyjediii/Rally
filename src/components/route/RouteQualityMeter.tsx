@@ -48,7 +48,7 @@ export default function RouteQualityMeter({ quality }: RouteQualityMeterProps) {
       </AnimatePresence>
 
       {/* Score bar */}
-      <div className="flex-1 h-1.5 rounded-full bg-white/8 overflow-hidden min-w-0">
+      <div className="flex-1 h-1.5 rounded-full bg-surface-elevated overflow-hidden min-w-0">
         <motion.div
           className={`h-full rounded-full bg-linear-to-r ${barGradient}`}
           initial={{ width: 0 }}
@@ -84,7 +84,7 @@ export default function RouteQualityMeter({ quality }: RouteQualityMeterProps) {
             transition={{ duration: 0.2 }}
             className="absolute top-full left-0 right-0 mt-1.5 z-20 glass-card p-3 text-xs text-text-secondary leading-relaxed border-rally-500/10"
           >
-            <span className="text-rally-400 font-medium">Tip: </span>{tip}
+            <span className="text-rally-adaptive font-medium">Tip: </span>{tip}
           </motion.div>
         )}
       </AnimatePresence>

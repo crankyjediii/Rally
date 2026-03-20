@@ -1,49 +1,151 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/layout/Navbar';
 import { getCurrentRoute } from '@/lib/storage';
 import { GeneratedRoute } from '@/lib/types';
 import { categoryLabel } from '@/lib/utils';
 
+const CARTO_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const CARTO_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+
+function getMapStyle() {
+  if (typeof window === 'undefined') return CARTO_LIGHT;
+  return document.documentElement.classList.contains('dark') ? CARTO_DARK : CARTO_LIGHT;
+}
+
 export default function MapPage() {
+  return (
+    <Suspense fallback={
+      <main className="h-dvh flex items-center justify-center bg-surface-primary">
+        <div className="w-8 h-8 border-2 border-rally-500/40 border-t-rally-500 rounded-full animate-spin" />
+      </main>
+    }>
+      <MapPageInner />
+    </Suspense>
+  );
+}
+
+function MapPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<unknown>(null);
-  const boundsRef = useRef<unknown>(null);
+  const markersRef = useRef<Array<{ remove: () => void }>>([]);
+  const prevStopIdsRef = useRef<string>('');
   const [route, setRoute] = useState<GeneratedRoute | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [showOverlay, setShowOverlay] = useState(true);
+
+  // ── Load route from localStorage (or from query param in future) ──
 
   useEffect(() => {
     const stored = getCurrentRoute();
     setRoute(stored);
-  }, []);
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'rally-current-route' || e.key === 'CURRENT_ROUTE') {
+        try {
+          const updated = e.newValue ? JSON.parse(e.newValue) : null;
+          setRoute(updated);
+        } catch { /* ignore parse errors */ }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [searchParams]);
+
+  // ── Effect 1: Initialize map ONCE ─────────────────────────────────
 
   useEffect(() => {
-    if (!route || !mapRef.current) return;
+    if (!mapRef.current || mapInstanceRef.current) return;
+
+    let cancelled = false;
 
     const loadMap = async () => {
-      const maplibregl = await import('maplibre-gl');
+      const { default: maplibregl } = await import('maplibre-gl');
       await import('maplibre-gl/dist/maplibre-gl.css');
 
-      const bounds = new maplibregl.LngLatBounds();
-      route.stops.forEach(stop => {
-        bounds.extend([stop.place.lng, stop.place.lat]);
-      });
-
-      boundsRef.current = bounds;
+      if (cancelled || !mapRef.current || mapInstanceRef.current) return;
 
       const map = new maplibregl.Map({
-        container: mapRef.current!,
-        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-        bounds: bounds,
-        fitBoundsOptions: { padding: 60 },
+        container: mapRef.current,
+        style: getMapStyle(),
+        zoom: 13,
+        center: [0, 0],
+      });
+
+      map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+      map.on('load', () => {
+        if (!cancelled) setMapLoaded(true);
       });
 
       mapInstanceRef.current = map;
-      map.addControl(new maplibregl.NavigationControl(), 'top-right');
+    };
 
+    loadMap().catch(console.error);
+
+    return () => {
+      cancelled = true;
+      if (mapInstanceRef.current) {
+        (mapInstanceRef.current as { remove: () => void }).remove();
+        mapInstanceRef.current = null;
+      }
+      setMapLoaded(false);
+    };
+  }, []);
+
+  // ── Effect 2: Update markers + polyline when route changes ────────
+
+  useEffect(() => {
+    const map = mapInstanceRef.current as {
+      getSource: (id: string) => { setData: (d: unknown) => void } | undefined;
+      addSource: (id: string, spec: unknown) => void;
+      addLayer: (spec: unknown) => void;
+      getLayer: (id: string) => unknown;
+      removeLayer: (id: string) => void;
+      removeSource: (id: string) => void;
+      fitBounds: (bounds: unknown, opts: unknown) => void;
+    } | null;
+
+    if (!map || !mapLoaded || !route || route.stops.length === 0) return;
+
+    const applyUpdates = async () => {
+      const { default: maplibregl } = await import('maplibre-gl');
+
+      // 1. Clear existing markers
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
+
+      // 2. Update polyline
+      const coords = route.stops.map(s => [s.place.lng, s.place.lat]);
+      const geoJson = {
+        type: 'Feature' as const,
+        geometry: { type: 'LineString' as const, coordinates: coords },
+        properties: {},
+      };
+
+      const existingSource = map.getSource('route-line');
+      if (existingSource) {
+        existingSource.setData(geoJson);
+      } else {
+        map.addSource('route-line', { type: 'geojson', data: geoJson });
+        map.addLayer({
+          id: 'route-line',
+          type: 'line',
+          source: 'route-line',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#a855f7',
+            'line-width': 3,
+            'line-opacity': 0.7,
+          },
+        });
+      }
+
+      // 3. Add numbered markers
       route.stops.forEach((stop, i) => {
         const el = document.createElement('div');
         el.className = 'flex items-center justify-center text-sm font-bold text-white rounded-full';
@@ -57,23 +159,46 @@ export default function MapPage() {
         el.style.cursor = 'pointer';
         el.textContent = String(i + 1);
 
-        new maplibregl.Marker({ element: el })
+        const popup = new maplibregl.Popup({ offset: 25, closeButton: false })
+          .setHTML(`
+            <div style="min-width:160px;max-width:220px;font-family:sans-serif">
+              <div style="font-size:14px;font-weight:bold;margin-bottom:3px">${stop.place.name}</div>
+              <div style="font-size:12px;opacity:0.7">${categoryLabel(stop.place.category)}</div>
+              ${stop.place.address ? `<div style="font-size:11px;opacity:0.5;margin-top:3px">${stop.place.address}</div>` : ''}
+              <div style="font-size:11px;opacity:0.6;margin-top:4px">~$${stop.place.estimatedCost} · ${stop.place.estimatedMinutes} min</div>
+            </div>
+          `);
+
+        const marker = new maplibregl.Marker({ element: el })
           .setLngLat([stop.place.lng, stop.place.lat])
-          .setPopup(
-            new maplibregl.Popup({ offset: 25 })
-              .setHTML(`
-                <div style="min-width:150px">
-                  <strong style="font-size:14px">${stop.place.name}</strong><br/>
-                  <span style="opacity:0.7;font-size:12px">${categoryLabel(stop.place.category)}</span><br/>
-                  <span style="opacity:0.5;font-size:11px">${stop.place.address}</span>
-                </div>
-              `)
-          )
-          .addTo(map);
+          .setPopup(popup)
+          .addTo(mapInstanceRef.current as Parameters<typeof marker.addTo>[0]);
+
+        markersRef.current.push(marker);
       });
+
+      // 4. Fit bounds when stop composition changes
+      const stopIdKey = route.stops.map(s => s.place.id).join(',');
+      if (stopIdKey !== prevStopIdsRef.current) {
+        const bounds = new maplibregl.LngLatBounds();
+        route.stops.forEach(s => bounds.extend([s.place.lng, s.place.lat]));
+        map.fitBounds(bounds, { padding: 60, duration: 600, maxZoom: 16 });
+        prevStopIdsRef.current = stopIdKey;
+      }
     };
 
-    loadMap();
+    applyUpdates().catch(console.error);
+  }, [route, mapLoaded]);
+
+  // ── Recenter handler ──────────────────────────────────────────────
+
+  const handleRecenter = useCallback(async () => {
+    if (!mapInstanceRef.current || !route) return;
+    const { default: maplibregl } = await import('maplibre-gl');
+    const bounds = new maplibregl.LngLatBounds();
+    route.stops.forEach(s => bounds.extend([s.place.lng, s.place.lat]));
+    const map = mapInstanceRef.current as { fitBounds: (b: unknown, o: unknown) => void };
+    map.fitBounds(bounds, { padding: 60, duration: 600, maxZoom: 16 });
   }, [route]);
 
   return (
@@ -88,6 +213,16 @@ export default function MapPage() {
           {/* Full-bleed map */}
           <div ref={mapRef} className="absolute inset-0" style={{ touchAction: 'pan-x pan-y pinch-zoom' }} />
 
+          {/* Loading overlay */}
+          {!mapLoaded && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-primary">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-rally-500/40 border-t-rally-500 rounded-full animate-spin" />
+                <span className="text-sm text-text-muted">Loading map…</span>
+              </div>
+            </div>
+          )}
+
           {/* Mobile back button */}
           <button
             onClick={() => router.push('/route')}
@@ -96,16 +231,10 @@ export default function MapPage() {
             ←
           </button>
 
-          {/* Recenter button — desktop only */}
+          {/* Recenter button */}
           <button
-            onClick={() => {
-              if (mapInstanceRef.current && boundsRef.current) {
-                const map = mapInstanceRef.current as unknown as { fitBounds: (b: unknown, o: unknown) => void };
-                const bounds = boundsRef.current as unknown as object;
-                map.fitBounds(bounds, { padding: 60 });
-              }
-            }}
-            className="hidden md:flex absolute top-3 right-3 z-10 w-10 h-10 rounded-xl bg-surface-primary/80 backdrop-blur-md border border-border-default items-center justify-center text-lg active:scale-90 transition-transform"
+            onClick={handleRecenter}
+            className="absolute top-3 right-3 z-10 w-10 h-10 rounded-xl bg-surface-primary/80 backdrop-blur-md border border-border-default flex items-center justify-center text-lg active:scale-90 transition-transform md:right-16"
             title="Recenter map"
           >
             ⊙
@@ -120,19 +249,29 @@ export default function MapPage() {
               onClick={() => setShowOverlay(!showOverlay)}
               className="md:hidden w-full flex justify-center py-2"
             >
-              <div className="w-8 h-1 rounded-full bg-white/30" />
+              <div className="w-8 h-1 rounded-full bg-text-muted/30" />
             </button>
 
             <div className="glass-card p-4 bg-surface-primary/90 backdrop-blur-xl">
               <h2 className="font-bold text-base sm:text-lg mb-1">{route.title}</h2>
-              <p className="text-xs sm:text-sm text-text-secondary mb-3">{route.stops.length} stops · {route.totalTime} · {route.travelMode}</p>
+              <div className="flex items-center gap-2 text-xs text-text-secondary mb-3">
+                <span className="px-2 py-0.5 rounded-full bg-rally-500/15 text-rally-adaptive text-[10px] font-medium">{route.vibe}</span>
+                <span>{route.stops.length} stops</span>
+                <span>·</span>
+                <span>{route.totalTime}</span>
+                <span>·</span>
+                <span>~${route.totalCost}</span>
+              </div>
               <div className="space-y-1.5 max-h-[30vh] overflow-y-auto no-scrollbar">
                 {route.stops.map((stop, i) => (
-                  <div key={i} className="flex items-center gap-2.5 text-sm py-0.5">
+                  <div key={stop.place.id || i} className="flex items-center gap-2.5 text-sm py-0.5">
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                      stop.completed ? 'bg-emerald-500/30 text-emerald-300' : 'bg-rally-500/30 text-rally-300'
+                      stop.completed ? 'bg-rally-sage/30 text-status-success' : 'bg-rally-500/20 text-rally-adaptive'
                     }`}>{i + 1}</span>
-                    <span className={`truncate ${stop.completed ? 'text-text-muted line-through' : 'text-text-secondary'}`}>{stop.place.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className={`block truncate ${stop.completed ? 'text-text-muted line-through' : 'text-text-secondary'}`}>{stop.place.name}</span>
+                      <span className="block text-[10px] text-text-muted truncate">{categoryLabel(stop.place.category)}{stop.place.address ? ` · ${stop.place.address}` : ''}</span>
+                    </div>
                   </div>
                 ))}
               </div>

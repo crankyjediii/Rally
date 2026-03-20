@@ -14,6 +14,12 @@ interface RouteMapProps {
 }
 
 const CARTO_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const CARTO_LIGHT = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+
+function getMapStyle() {
+  if (typeof window === 'undefined') return CARTO_LIGHT;
+  return document.documentElement.classList.contains('dark') ? CARTO_DARK : CARTO_LIGHT;
+}
 
 function createMarkerElement(
   index: number,
@@ -95,7 +101,7 @@ export default function RouteMap({
 
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: CARTO_DARK,
+        style: getMapStyle(),
         zoom: 13,
         center: [route.stops[0]?.place.lng ?? 0, route.stops[0]?.place.lat ?? 0],
       });
@@ -143,7 +149,7 @@ export default function RouteMap({
       (markersRef.current as Array<{ remove: () => void }>).forEach(m => m.remove());
       markersRef.current = [];
 
-      // 2. Update polyline
+      // 2. Update polyline — always derived from current stop order
       const coords = route.stops.map(s => [s.place.lng, s.place.lat]);
       const geoJson = {
         type: 'Feature' as const,
@@ -151,22 +157,26 @@ export default function RouteMap({
         properties: {},
       };
 
-      if (map.getSource('route-line')) {
-        (map.getSource('route-line') as { setData: (d: unknown) => void }).setData(geoJson);
+      const existingSource = map.getSource('route-line');
+      if (existingSource) {
+        (existingSource as { setData: (d: unknown) => void }).setData(geoJson);
       } else {
-        map.addSource('route-line', { type: 'geojson', data: geoJson });
-        map.addLayer({
-          id: 'route-line',
-          type: 'line',
-          source: 'route-line',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#a855f7',
-            'line-width': 2,
-            'line-opacity': 0.55,
-            'line-dasharray': [3, 2],
-          },
-        });
+        try {
+          map.addSource('route-line', { type: 'geojson', data: geoJson });
+          map.addLayer({
+            id: 'route-line',
+            type: 'line',
+            source: 'route-line',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': '#a855f7',
+              'line-width': 3,
+              'line-opacity': 0.8,
+            },
+          });
+        } catch {
+          // Source/layer may have been added between check and add — ignore
+        }
       }
 
       // 3. Add new markers
@@ -226,11 +236,11 @@ export default function RouteMap({
           <div className="absolute inset-0 opacity-[0.07]">
             {/* Horizontal lines */}
             {[20, 35, 50, 65, 80].map(pct => (
-              <div key={pct} className="absolute left-0 right-0 h-px bg-white" style={{ top: `${pct}%` }} />
+              <div key={pct} className="absolute left-0 right-0 h-px bg-text-primary" style={{ top: `${pct}%` }} />
             ))}
             {/* Vertical lines */}
             {[15, 30, 45, 60, 75, 90].map(pct => (
-              <div key={pct} className="absolute top-0 bottom-0 w-px bg-white" style={{ left: `${pct}%` }} />
+              <div key={pct} className="absolute top-0 bottom-0 w-px bg-text-primary" style={{ left: `${pct}%` }} />
             ))}
           </div>
           {/* Shimmer sweep */}

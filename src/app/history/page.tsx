@@ -8,19 +8,26 @@ import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import Navbar from '@/components/layout/Navbar';
 import { AuthPrompt } from '@/components/auth/AuthPrompt';
-import { RouteHistoryItem } from '@/lib/types';
 import { categoryEmoji, formatCurrency } from '@/lib/utils';
+
+interface HistoryEntry {
+  _id: string;
+  route: { title: string; city: string; vibe: string; totalCost: number; totalTime: string; createdAt: string; stops: Array<{ place: { category: string } }> };
+  completedStops: number;
+  totalStops: number;
+  finishedAt: string;
+}
 
 export default function HistoryPage() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
   const historyRaw = useQuery(api.routeHistory.getHistory);
 
-  // Map Convex docs to RouteHistoryItem shape used by the render JSX
-  const history = useMemo<RouteHistoryItem[]>(() => {
+  const history = useMemo<HistoryEntry[]>(() => {
     if (!historyRaw) return [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return historyRaw.map((doc: any) => ({
+      _id: doc._id,
       route: doc.routeData,
       completedStops: doc.completedStops,
       totalStops: doc.totalStops,
@@ -30,7 +37,6 @@ export default function HistoryPage() {
 
   if (!isLoaded) return null;
 
-  // Guest state: show auth prompt
   if (!isSignedIn) {
     return (
       <main className="min-h-dvh">
@@ -49,7 +55,6 @@ export default function HistoryPage() {
     );
   }
 
-  // Loading Convex data
   if (historyRaw === undefined) {
     return (
       <main className="min-h-dvh">
@@ -60,8 +65,8 @@ export default function HistoryPage() {
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="glass-card p-4 sm:p-5 animate-pulse">
-                <div className="h-4 bg-white/10 rounded w-3/4 mb-2" />
-                <div className="h-3 bg-white/5 rounded w-1/2" />
+                <div className="h-4 bg-surface-elevated rounded w-3/4 mb-2" />
+                <div className="h-3 bg-surface-elevated rounded w-1/2" />
               </div>
             ))}
           </div>
@@ -74,6 +79,7 @@ export default function HistoryPage() {
   return (
     <main className="min-h-dvh">
       <Navbar />
+      <div className="bg-orb w-[300px] h-[300px] bg-rally-butter top-20 -left-20 fixed" />
       <div className="max-w-2xl mx-auto px-5 py-4 sm:py-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-1.5">Route History</h1>
         <p className="text-sm sm:text-base text-text-secondary mb-6 sm:mb-8">Your past adventures.</p>
@@ -92,9 +98,13 @@ export default function HistoryPage() {
         ) : (
           <div className="space-y-3 sm:space-y-4">
             {history.map((item, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              <motion.div
+                key={item._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="glass-card-hover p-4 sm:p-5"
+                onClick={() => router.push(`/routes/${item._id}`)}
+                className="glass-card-hover p-4 sm:p-5 cursor-pointer active:scale-[0.98] transition-transform"
               >
                 <div className="flex items-start justify-between gap-3 mb-2.5 sm:mb-3">
                   <div className="min-w-0">
@@ -114,10 +124,13 @@ export default function HistoryPage() {
                     <span>{formatCurrency(item.route.totalCost)}</span>
                     <span>{item.route.totalTime}</span>
                   </div>
-                  <div className="h-1.5 w-16 sm:w-20 bg-white/5 rounded-full overflow-hidden shrink-0">
-                    <div className="h-full bg-gradient-to-r from-rally-500 to-rally-pink rounded-full"
-                      style={{ width: `${(item.completedStops / item.totalStops) * 100}%` }}
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-16 sm:w-20 bg-surface-elevated rounded-full overflow-hidden shrink-0">
+                      <div className="h-full bg-linear-to-r from-rally-500 to-rally-pink rounded-full"
+                        style={{ width: `${(item.completedStops / item.totalStops) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-text-muted text-xs">→</span>
                   </div>
                 </div>
               </motion.div>

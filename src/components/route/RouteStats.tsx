@@ -55,7 +55,7 @@ function Chip({ emoji, label }: { emoji: string; label: string }) {
       variants={fadeUp}
       whileHover={{ scale: 1.05, y: -1 }}
       transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/5 border border-white/8 whitespace-nowrap shrink-0 cursor-default"
+      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-elevated border border-border-default whitespace-nowrap shrink-0 cursor-default"
     >
       <span className="text-sm leading-none">{emoji}</span>
       <span className="text-xs text-text-secondary">{label}</span>

@@ -9,9 +9,12 @@
  */
 
 import type * as badges from "../badges.js";
+import type * as plannedRoutes from "../plannedRoutes.js";
 import type * as preferences from "../preferences.js";
 import type * as routeHistory from "../routeHistory.js";
+import type * as routes from "../routes.js";
 import type * as savedRoutes from "../savedRoutes.js";
+import type * as subscriptions from "../subscriptions.js";
 import type * as users from "../users.js";
 
 import type {
@@ -22,9 +25,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   badges: typeof badges;
+  plannedRoutes: typeof plannedRoutes;
   preferences: typeof preferences;
   routeHistory: typeof routeHistory;
+  routes: typeof routes;
   savedRoutes: typeof savedRoutes;
+  subscriptions: typeof subscriptions;
   users: typeof users;
 }>;
 

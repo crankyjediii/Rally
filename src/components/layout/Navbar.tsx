@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useUser, SignInButton, UserButton } from '@clerk/nextjs';
+import { useTheme } from '@/hooks/useTheme';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Home', icon: '🏠' },
@@ -13,6 +14,27 @@ const NAV_ITEMS = [
   { href: '/profile', label: 'Profile', icon: '👤' },
 ];
 
+function ThemeToggle() {
+  const { isDark, toggle } = useTheme();
+
+  return (
+    <button
+      onClick={toggle}
+      className="w-9 h-9 rounded-xl bg-surface-elevated border border-border-default flex items-center justify-center text-base transition-all hover:border-border-hover active:scale-95"
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      <motion.span
+        key={isDark ? 'moon' : 'sun'}
+        initial={{ scale: 0, rotate: -90 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+      >
+        {isDark ? '🌙' : '☀️'}
+      </motion.span>
+    </button>
+  );
+}
+
 export default function Navbar() {
   const pathname = usePathname();
   const { isSignedIn, isLoaded } = useUser();
@@ -20,7 +42,7 @@ export default function Navbar() {
   return (
     <>
       {/* Desktop Nav */}
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-50 items-center justify-between px-6 py-3 bg-surface-primary/80 backdrop-blur-xl border-b border-border-default">
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 z-50 items-center justify-between px-6 py-3 bg-surface-primary/90 backdrop-blur-xl border-b border-border-default">
         <Link href="/" className="flex items-center gap-2.5 group">
           <motion.div
             whileHover={{ scale: 1.12, rotate: 6 }}
@@ -41,7 +63,7 @@ export default function Navbar() {
                 href={item.href}
                 className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'text-rally-400'
+                    ? 'text-rally-adaptive'
                     : 'text-text-secondary hover:text-text-primary'
                 }`}
               >
@@ -59,6 +81,7 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link href="/premium" className="btn-secondary text-xs">
             <span>✨</span>
             <span>Premium</span>
@@ -94,7 +117,7 @@ export default function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={`relative flex flex-col items-center justify-center flex-1 min-w-0 gap-0.5 transition-colors ${
-                  isActive ? 'text-rally-400' : 'text-text-muted'
+                  isActive ? 'text-rally-adaptive' : 'text-text-muted'
                 }`}
               >
                 {isActive && (

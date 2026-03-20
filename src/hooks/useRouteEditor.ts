@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { arrayMove } from '@dnd-kit/sortable';
 import {
@@ -37,6 +37,8 @@ export interface UseRouteEditorReturn {
   quality: RouteQualityResult | null;
   allRevealed: boolean;
   revealed: Set<number>;
+  recoveredFromCloud: boolean;
+  saveConfirmation: string;
 
   handleComplete: (index: number) => void;
   handleRate: (index: number, rating: number) => void;
@@ -81,6 +83,15 @@ export function useRouteEditor(): UseRouteEditorReturn {
   const { isSignedIn } = useUser();
   const saveRouteMutation = useMutation(api.savedRoutes.saveRoute);
   const addHistoryMutation = useMutation(api.routeHistory.addHistoryEntry);
+  const createOrUpdatePlanned = useMutation(api.plannedRoutes.createOrUpdate);
+  const setSavedForLater = useMutation(api.plannedRoutes.setSavedForLater);
+  const markPlannedCompleted = useMutation(api.plannedRoutes.markCompleted);
+
+  // Route recovery from Convex for signed-in users
+  const activeConvexRoute = useQuery(
+    api.plannedRoutes.getActive,
+    isSignedIn ? {} : 'skip',
+  );
 
   const [route, setRouteState] = useState<GeneratedRoute | null>(null);
   const [undoStack, setUndoStack] = useState<GeneratedRoute[]>([]);
@@ -93,24 +104,83 @@ export function useRouteEditor(): UseRouteEditorReturn {
   const [alternativesForIndex, setAlternativesForIndex] = useState<number | null>(null);
   const [allRevealed, setAllRevealed] = useState(false);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const [recoveredFromCloud, setRecoveredFromCloud] = useState(false);
+  const [saveConfirmation, setSaveConfirmation] = useState('');
 
-  // Load route on mount with stagger reveal
+  // Debounce timer for Convex sync
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(false);
+
+  // ── Load route on mount ─────────────────────────────────────────
+
   useEffect(() => {
     const stored = getCurrentRoute();
-    if (!stored) return;
-    setRouteState(stored);
-    stored.stops.forEach((_, i) => {
+    if (stored) {
+      setRouteState(stored);
+      stored.stops.forEach((_, i) => {
+        setTimeout(() => {
+          setRevealed(prev => new Set([...prev, i]));
+          if (i === stored.stops.length - 1) {
+            setTimeout(() => setAllRevealed(true), 400);
+          }
+        }, 600 + i * 500);
+      });
+      mountedRef.current = true;
+    }
+  }, []);
+
+  // ── Route recovery from Convex if localStorage is empty ─────────
+
+  useEffect(() => {
+    if (mountedRef.current) return; // already loaded from localStorage
+    if (!isSignedIn || activeConvexRoute === undefined) return; // still loading
+    if (!activeConvexRoute) return; // no active route on server
+
+    const routeData = activeConvexRoute.routeData as GeneratedRoute;
+    if (!routeData || !routeData.stops) return;
+
+    // Only recover if localStorage is truly empty
+    const stored = getCurrentRoute();
+    if (stored) {
+      mountedRef.current = true;
+      return;
+    }
+
+    setCurrentRoute(routeData);
+    setRouteState(routeData);
+    setRecoveredFromCloud(true);
+    mountedRef.current = true;
+
+    // Animate reveal
+    routeData.stops.forEach((_, i) => {
       setTimeout(() => {
         setRevealed(prev => new Set([...prev, i]));
-        if (i === stored.stops.length - 1) {
+        if (i === routeData.stops.length - 1) {
           setTimeout(() => setAllRevealed(true), 400);
         }
-      }, 600 + i * 500);
+      }, 300 + i * 300);
     });
-  }, []);
+  }, [isSignedIn, activeConvexRoute]);
 
   const prefs = route ? getPreferences() : null;
   const quality = route && prefs ? computeRouteQuality(route, prefs) : null;
+
+  // ── Debounced Convex sync ───────────────────────────────────────
+
+  const syncToConvex = useCallback((newRoute: GeneratedRoute) => {
+    if (!isSignedIn) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      createOrUpdatePlanned({
+        routeId: newRoute.id,
+        title: newRoute.title,
+        vibe: newRoute.vibe,
+        city: newRoute.city ?? '',
+        routeData: newRoute,
+        isActive: true,
+      }).catch(console.error);
+    }, 2000);
+  }, [isSignedIn, createOrUpdatePlanned]);
 
   // ── Core mutation applier ──────────────────────────────────────────
 
@@ -123,8 +193,9 @@ export function useRouteEditor(): UseRouteEditorReturn {
       return newRoute;
     });
     setCurrentRoute(newRoute);
+    syncToConvex(newRoute);
     if (reason) setEditReason(reason);
-  }, []);
+  }, [syncToConvex]);
 
   // ── Synchronous actions ───────────────────────────────────────────
 
@@ -216,12 +287,13 @@ export function useRouteEditor(): UseRouteEditorReturn {
       setRouteState(current => {
         if (current) setRedoStack(redo => [...redo, current]);
         setCurrentRoute(previous);
+        syncToConvex(previous);
         return previous;
       });
       return prev.slice(0, -1);
     });
     setEditReason('');
-  }, []);
+  }, [syncToConvex]);
 
   const handleRedo = useCallback(() => {
     setRedoStack(prev => {
@@ -230,12 +302,13 @@ export function useRouteEditor(): UseRouteEditorReturn {
       setRouteState(current => {
         if (current) setUndoStack(undo => [...undo, current]);
         setCurrentRoute(future);
+        syncToConvex(future);
         return future;
       });
       return prev.slice(0, -1);
     });
     setEditReason('');
-  }, []);
+  }, [syncToConvex]);
 
   // ── AI action dispatcher ──────────────────────────────────────────
 
@@ -323,6 +396,10 @@ export function useRouteEditor(): UseRouteEditorReturn {
     applyMutation(saved);
 
     if (isSignedIn) {
+      // Mark as saved-for-later in planned routes
+      setSavedForLater({ routeId: route.id, saved: true }).catch(console.error);
+
+      // Also save to legacy savedRoutes table for backward compat
       await saveRouteMutation({
         routeId: route.id,
         title: route.title,
@@ -334,8 +411,11 @@ export function useRouteEditor(): UseRouteEditorReturn {
         savedAt: new Date().toISOString(),
         routeData: { ...saved, savedAt: new Date().toISOString() },
       });
+
+      setSaveConfirmation('Route saved! Find it in your Saved routes.');
+      setTimeout(() => setSaveConfirmation(''), 3000);
     }
-  }, [route, isSignedIn, saveRouteMutation, applyMutation]);
+  }, [route, isSignedIn, saveRouteMutation, applyMutation, setSavedForLater]);
 
   const handleFinish = useCallback(async () => {
     if (!route) return { completedCount: 0 };
@@ -343,6 +423,9 @@ export function useRouteEditor(): UseRouteEditorReturn {
     addToHistory(route, completedCount);
 
     if (isSignedIn) {
+      // Mark as completed in planned routes
+      markPlannedCompleted({ routeId: route.id }).catch(console.error);
+
       await addHistoryMutation({
         routeId: route.id,
         title: route.title,
@@ -356,7 +439,7 @@ export function useRouteEditor(): UseRouteEditorReturn {
     }
 
     return { completedCount };
-  }, [route, isSignedIn, addHistoryMutation]);
+  }, [route, isSignedIn, addHistoryMutation, markPlannedCompleted]);
 
   return {
     route,
@@ -371,6 +454,8 @@ export function useRouteEditor(): UseRouteEditorReturn {
     quality,
     allRevealed,
     revealed,
+    recoveredFromCloud,
+    saveConfirmation,
 
     handleComplete,
     handleRate,
